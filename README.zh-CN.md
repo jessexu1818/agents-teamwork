@@ -1,6 +1,6 @@
 # agents-teamwork
 
-[![status](https://img.shields.io/badge/status-v1-blue)]() [![tools](https://img.shields.io/badge/tools-7-green)]() [![license](https://img.shields.io/badge/license-MIT-lightgrey)]()
+[![status](https://img.shields.io/badge/status-v1-blue)]() [![tools](https://img.shields.io/badge/tools-12-green)]() [![license](https://img.shields.io/badge/license-MIT-lightgrey)]()
 
 通用多 IDE 智能体协作技能：一个 `team-orchestrator` 技能加按工具生成的角色配置，
 把任何受支持的 IDE 变成“根节点 + 专家子智能体”团队。根节点负责架构、任务分解、
@@ -55,6 +55,11 @@ cp templates/skills/team-orchestrator/SKILL.md <repo>/.agents/skills/team-orches
 | Kiro | `<repo>/.kiro/skills/team-orchestrator/SKILL.md` |
 | CodeBuddy | `<repo>/.codebuddy/skills/team-orchestrator/SKILL.md` |
 | 通用 agents | `<repo>/.agents/skills/team-orchestrator/SKILL.md` |
+| Antigravity | `<repo>/.agents/skills/team-orchestrator/SKILL.md` |
+| Copilot | `<repo>/.github/skills/team-orchestrator/SKILL.md` |
+| Windsurf | `<repo>/.windsurf/skills/team-orchestrator/SKILL.md` |
+| Qoder | `<repo>/.qoder/skills/team-orchestrator/SKILL.md` |
+| Trae | `<repo>/.trae/skills/team-orchestrator/SKILL.md` |
 
 然后这样调用：
 
@@ -97,7 +102,7 @@ v1 的各工具全局安装均为手动操作：安装器的 `--global` 会被�
 
 ## 工具矩阵
 
-`--tools all` 覆盖 7 种工具。技能写入各工具的 `skills/` 目录；角色写入各
+`--tools all` 覆盖 12 种工具。技能写入各工具的 `skills/` 目录；角色写入各
 工具的 `agents/` 目录（仅 `all` 组件）。
 
 | 工具 | 技能输出 | 角色输出 |
@@ -109,6 +114,11 @@ v1 的各工具全局安装均为手动操作：安装器的 `--global` 会被�
 | kiro | `.kiro/skills/team-orchestrator/SKILL.md` | `.kiro/agents/<role>.md` |
 | codebuddy | `.codebuddy/skills/team-orchestrator/SKILL.md` | `.codebuddy/agents/<role>.md` |
 | agents | `.agents/skills/team-orchestrator/SKILL.md` | `.agents/agents/<role>.md` |
+| antigravity | `.agents/skills/team-orchestrator/SKILL.md` | `.agent/agents/<role>.md` |
+| copilot | `.github/skills/team-orchestrator/SKILL.md` | `.github/agents/<role>.agent.md` |
+| windsurf | `.windsurf/skills/team-orchestrator/SKILL.md` | `.windsurf/rules/<role>.md` |
+| qoder | `.qoder/skills/team-orchestrator/SKILL.md` | `.qoder/agents/<role>.md` |
+| trae | `.trae/skills/team-orchestrator/SKILL.md` | `.trae/rules/<role>.md` |
 
 完整安装还会在目标根目录写入 `AGENTS.md`。Codex 是例外：角色转为 TOML
 （`model`、`sandbox_mode`、原始数字 `temperature`、`developer_instructions`）；

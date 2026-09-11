@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Docs: 5 new tool guides (`antigravity/copilot/windsurf/qoder/trae`) with
+  skill/role paths, model-field mapping, limits, and verify commands; global
+  paths table and EN/ZH tool matrices updated to 12 tools.
+- `--tools` selection candidate set expanded 7->12 (selection flag already
+  existed; `--tools all` now covers all 12 targets).
+
 ## [0.1.0] - 2026-09-11
 
 ### Added

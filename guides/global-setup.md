@@ -15,10 +15,16 @@ install. Copy files by hand instead.
 | Kiro | `~/.kiro/skills/team-orchestrator/` | `~/.kiro/agents/` |
 | CodeBuddy | `~/.codebuddy/skills/team-orchestrator/` | `~/.codebuddy/agents/` |
 | Generic agents | `~/.agents/skills/team-orchestrator/` | `~/.agents/agents/` |
+| Antigravity | `~/.gemini/antigravity/skills/team-orchestrator/` | `~/.gemini/antigravity/agents/` |
+| Copilot | `~/.copilot/skills/team-orchestrator/` | `~/.copilot/agents/` |
+| Windsurf | `~/.windsurf/skills/team-orchestrator/` | Settings UI (rules) |
+| Qoder | `~/.qoder/skills/team-orchestrator/` | `~/.qoder/agents/` |
+| Trae | `~/.trae/skills/team-orchestrator/` | `~/.trae/user_rules/` |
 
 Copy `templates/skills/team-orchestrator/SKILL.md` to the skills dir first;
 then, if you want generated defaults globally, generate into a temp dir and
-copy the `agents/` files over.
+copy the `agents/` files over. Windsurf has no stable global rules directory:
+import generated rules via the Windsurf Settings UI instead of copying files.
 
 ## Merge, don't overwrite
 

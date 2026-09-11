@@ -1,6 +1,6 @@
 # agents-teamwork
 
-[![status](https://img.shields.io/badge/status-v1-blue)]() [![tools](https://img.shields.io/badge/tools-7-green)]() [![license](https://img.shields.io/badge/license-Apache--2.0-lightgrey)]()
+[![status](https://img.shields.io/badge/status-v1-blue)]() [![tools](https://img.shields.io/badge/tools-12-green)]() [![license](https://img.shields.io/badge/license-Apache--2.0-lightgrey)]()
 
 Universal multi-IDE agent teamwork skills: one `team-orchestrator` skill plus
 per-tool role configs that turn any supported IDE into a root-plus-specialists
@@ -59,6 +59,11 @@ Per-tool skill destination (same file, different folder):
 | Kiro | `<repo>/.kiro/skills/team-orchestrator/SKILL.md` |
 | CodeBuddy | `<repo>/.codebuddy/skills/team-orchestrator/SKILL.md` |
 | Generic agents | `<repo>/.agents/skills/team-orchestrator/SKILL.md` |
+| Antigravity | `<repo>/.agents/skills/team-orchestrator/SKILL.md` |
+| Copilot | `<repo>/.github/skills/team-orchestrator/SKILL.md` |
+| Windsurf | `<repo>/.windsurf/skills/team-orchestrator/SKILL.md` |
+| Qoder | `<repo>/.qoder/skills/team-orchestrator/SKILL.md` |
+| Trae | `<repo>/.trae/skills/team-orchestrator/SKILL.md` |
 
 Then invoke it:
 
@@ -101,7 +106,7 @@ per-tool user-directory paths and merge rules.
 
 ## Tools matrix
 
-`--tools all` covers 7 tools. Skills land under each tool's `skills/` dir;
+`--tools all` covers 12 tools. Skills land under each tool's `skills/` dir;
 roles land under each tool's `agents/` dir (components `all` only).
 
 | Tool | Skill output | Roles output |
@@ -113,6 +118,11 @@ roles land under each tool's `agents/` dir (components `all` only).
 | kiro | `.kiro/skills/team-orchestrator/SKILL.md` | `.kiro/agents/<role>.md` |
 | codebuddy | `.codebuddy/skills/team-orchestrator/SKILL.md` | `.codebuddy/agents/<role>.md` |
 | agents | `.agents/skills/team-orchestrator/SKILL.md` | `.agents/agents/<role>.md` |
+| antigravity | `.agents/skills/team-orchestrator/SKILL.md` | `.agent/agents/<role>.md` |
+| copilot | `.github/skills/team-orchestrator/SKILL.md` | `.github/agents/<role>.agent.md` |
+| windsurf | `.windsurf/skills/team-orchestrator/SKILL.md` | `.windsurf/rules/<role>.md` |
+| qoder | `.qoder/skills/team-orchestrator/SKILL.md` | `.qoder/agents/<role>.md` |
+| trae | `.trae/skills/team-orchestrator/SKILL.md` | `.trae/rules/<role>.md` |
 
 Full installs also write `AGENTS.md` at the target root. Codex is the
 exception: roles convert to TOML (`model`, `sandbox_mode`, raw numeric
