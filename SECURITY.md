@@ -5,7 +5,7 @@
 | Version | Supported          |
 | ------- | ------------------ |
 | main    | Supported          |
-| < 1.0   | Best-effort support |
+| `< 1.0` | Best-effort support |
 
 Pre-1.0 releases are under active development. Security fixes land
 on `main` first and are noted in `CHANGELOG.md`.

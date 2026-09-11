@@ -10,11 +10,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Initial skeleton and OSS compliance files.
-
-### Changed
-
-- Nothing yet.
-
-### Fixed
-
-- Nothing yet.
