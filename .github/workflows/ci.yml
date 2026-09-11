@@ -1,0 +1,32 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run tests (if present)
+        run: |
+          if [ -d tests ]; then
+            python3 -m pytest tests/ -q
+          else
+            echo "No tests directory, skipping."
+          fi
+
+      - name: Shellcheck setup.sh (if present)
+        run: |
+          if [ -f setup.sh ]; then
+            shellcheck setup.sh
+          else
+            echo "No setup.sh, skipping shellcheck."
+          fi

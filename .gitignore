@@ -1,0 +1,23 @@
+# macOS
+.DS_Store
+
+# Python
+*.pyc
+__pycache__/
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+
+# Generator test output
+/tmp-generate-test/
+
+# Logs
+*.log
+
+# Git worktrees
+.worktrees/
+
+# Node (if any tooling is added later)
+node_modules/
