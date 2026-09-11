@@ -4,11 +4,31 @@ import sys
 import tomllib
 from pathlib import Path
 
+import pytest
+
 REPO = Path(__file__).resolve().parent.parent
 GEN = REPO / "scripts" / "generate.py"
 
 CORE_ROLES = ["explorer", "worker", "tester", "reviewer", "researcher"]
 EXTRA_ROLES = ["planner", "oracle", "designer"]
+
+NEW_TOOLS = ["antigravity", "copilot", "windsurf", "qoder", "trae"]
+
+SKILL_PATHS = {
+    "antigravity": ".agents/skills/team-orchestrator/SKILL.md",
+    "copilot": ".github/skills/team-orchestrator/SKILL.md",
+    "windsurf": ".windsurf/skills/team-orchestrator/SKILL.md",
+    "qoder": ".qoder/skills/team-orchestrator/SKILL.md",
+    "trae": ".trae/skills/team-orchestrator/SKILL.md",
+}
+
+ROLE_GLOBS = {
+    "antigravity": ".agent/agents/*.md",
+    "copilot": ".github/agents/*.agent.md",
+    "windsurf": ".windsurf/rules/*.md",
+    "qoder": ".qoder/agents/*.md",
+    "trae": ".trae/rules/*.md",
+}
 
 
 def run_gen(target: Path, *args: str) -> subprocess.CompletedProcess:
@@ -129,3 +149,73 @@ def test_empty_tools_exits_nonzero():
         r = run_gen(t, "--tools", "", "--components", "all",
                     "--preset", "pro")
         assert r.returncode != 0
+
+
+@pytest.mark.parametrize("tool", NEW_TOOLS)
+def test_new_tools_skills_only_yields_skill_no_roles(tool):
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        t = Path(td) / "out"
+        r = run_gen(t, "--tools", tool, "--components", "skills-only",
+                    "--preset", "pro")
+        assert r.returncode == 0, f"stderr: {r.stderr}"
+        assert (t / SKILL_PATHS[tool]).exists(), f"missing skill for {tool}"
+        assert not list(t.glob(ROLE_GLOBS[tool])), f"role files leaked for {tool}"
+
+
+@pytest.mark.parametrize("tool", NEW_TOOLS)
+def test_new_tools_full_run_core_and_extra_roles(tool):
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        t = Path(td) / "out"
+        r = run_gen(t, "--tools", tool, "--components", "all",
+                    "--preset", "pro")
+        assert r.returncode == 0, f"stderr: {r.stderr}"
+        assert len(list(t.glob(ROLE_GLOBS[tool]))) == len(CORE_ROLES)
+    with tempfile.TemporaryDirectory() as td:
+        t = Path(td) / "out"
+        r = run_gen(t, "--tools", tool, "--components", "all",
+                    "--extra", "planner,oracle,designer", "--preset", "pro")
+        assert r.returncode == 0, f"stderr: {r.stderr}"
+        assert len(list(t.glob(ROLE_GLOBS[tool]))) == len(CORE_ROLES + EXTRA_ROLES)
+
+
+def test_copilot_agent_frontmatter_model_no_sandbox():
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        t = Path(td) / "out"
+        r = run_gen(t, "--tools", "copilot", "--components", "all",
+                    "--preset", "pro")
+        assert r.returncode == 0, f"stderr: {r.stderr}"
+        p = t / ".github" / "agents" / "explorer.agent.md"
+        assert p.exists()
+        text = p.read_text(encoding="utf-8")
+        assert "model:" in text
+        assert "sandbox" not in text
+
+
+def test_windsurf_rule_has_trigger_model_decision():
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        t = Path(td) / "out"
+        r = run_gen(t, "--tools", "windsurf", "--components", "all",
+                    "--preset", "pro")
+        assert r.returncode == 0, f"stderr: {r.stderr}"
+        p = t / ".windsurf" / "rules" / "explorer.md"
+        assert p.exists()
+        assert "trigger: model_decision" in p.read_text(encoding="utf-8")
+
+
+def test_qoder_tools_readonly_vs_write():
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        t = Path(td) / "out"
+        r = run_gen(t, "--tools", "qoder", "--components", "all",
+                    "--preset", "pro")
+        assert r.returncode == 0, f"stderr: {r.stderr}"
+        exp = (t / ".qoder" / "agents" / "explorer.md").read_text(encoding="utf-8")
+        wrk = (t / ".qoder" / "agents" / "worker.md").read_text(encoding="utf-8")
+        exp_tools = next(l for l in exp.splitlines() if l.startswith("tools:"))
+        wrk_tools = next(l for l in wrk.splitlines() if l.startswith("tools:"))
+        assert "Edit" not in exp_tools and "Write" not in exp_tools
+        assert "Edit" in wrk_tools and "Write" in wrk_tools

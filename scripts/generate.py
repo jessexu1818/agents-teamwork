@@ -11,7 +11,8 @@ import argparse
 import sys
 from pathlib import Path
 
-ALL_TOOLS = ["claude", "codex", "codebuddy", "kiro", "opencode", "cursor", "agents"]
+ALL_TOOLS = ["claude", "codex", "codebuddy", "kiro", "opencode", "cursor", "agents",
+             "antigravity", "copilot", "windsurf", "qoder", "trae"]
 CORE_ROLES = ["explorer", "worker", "tester", "reviewer", "researcher"]
 EXTRA_CHOICES = ["planner", "oracle", "designer"]
 
@@ -36,7 +37,7 @@ def parse_args(argv=None):
                 "custom (all mini, effort low). Override with --*-model flags."),
     )
     p.add_argument("--tools", default="all",
-                   help="all or csv of claude,codex,codebuddy,kiro,opencode,cursor,agents")
+                   help="all or csv of claude,codex,codebuddy,kiro,opencode,cursor,agents,antigravity,copilot,windsurf,qoder,trae")
     p.add_argument("--extra", default="",
                    help="csv subset of planner,oracle,designer (default empty)")
     p.add_argument("--components", default="all", choices=["all", "skills-only"])
@@ -125,6 +126,38 @@ def role_to_toml(meta, body):
     return "\n".join(lines) + "\n"
 
 
+def role_to_copilot_agent(meta, body):
+    lines = ["---", f"name: {meta.get('name', '')}",
+             f"description: {meta.get('description', '')}",
+             f"model: {meta.get('model', '')}", "---", ""]
+    if not body.endswith("\n"):
+        body += "\n"
+    return "\n".join(lines) + body
+
+
+def role_to_windsurf_rule(meta, body):
+    lines = ["---", "trigger: model_decision",
+             f"description: {meta.get('description', '')}", "---", ""]
+    if not body.endswith("\n"):
+        body += "\n"
+    return "\n".join(lines) + body
+
+
+def role_to_qoder_agent(meta, body):
+    denied = meta.get("denied_tools", "").lower()
+    if "write" in denied or "edit" in denied:
+        tools = "Read, Grep, Glob, Bash"
+    else:
+        tools = "Read, Grep, Glob, Bash, Edit, Write"
+    lines = ["---", f"name: {meta.get('name', '')}",
+             f"description: {meta.get('description', '')}",
+             f"model: {meta.get('model', '')}",
+             f"tools: {tools}", "---", ""]
+    if not body.endswith("\n"):
+        body += "\n"
+    return "\n".join(lines) + body
+
+
 def main(argv=None):
     args = parse_args(argv)
     tools = list(dict.fromkeys(resolve_tools(args.tools)))
@@ -158,6 +191,69 @@ def main(argv=None):
                 cfg = (f"model = {toml_str(models['orchestrator'])}\n"
                        f"[agents]\ndefault_subagent_model = {toml_str(models['worker'])}\n")
                 (target / ".codex" / "config.toml").write_text(cfg)
+        elif tool == "antigravity":
+            skill_path = target / ".agents" / "skills" / "team-orchestrator" / "SKILL.md"
+            skill_path.parent.mkdir(parents=True, exist_ok=True)
+            skill_path.write_text(skill_text)
+            n_skills += 1
+            if args.components == "all":
+                adir = target / ".agent" / "agents"
+                adir.mkdir(parents=True, exist_ok=True)
+                for role in roles:
+                    src = (TEMPLATE_ROOT / "roles" / f"{role}.md").read_text()
+                    (adir / f"{role}.md").write_text(substitute(src, models))
+                    n_roles += 1
+        elif tool == "copilot":
+            skill_path = target / ".github" / "skills" / "team-orchestrator" / "SKILL.md"
+            skill_path.parent.mkdir(parents=True, exist_ok=True)
+            skill_path.write_text(skill_text)
+            n_skills += 1
+            if args.components == "all":
+                adir = target / ".github" / "agents"
+                adir.mkdir(parents=True, exist_ok=True)
+                for role in roles:
+                    src = (TEMPLATE_ROOT / "roles" / f"{role}.md").read_text()
+                    meta, body = parse_frontmatter(substitute(src, models))
+                    (adir / f"{role}.agent.md").write_text(role_to_copilot_agent(meta, body))
+                    n_roles += 1
+        elif tool == "windsurf":
+            skill_path = target / ".windsurf" / "skills" / "team-orchestrator" / "SKILL.md"
+            skill_path.parent.mkdir(parents=True, exist_ok=True)
+            skill_path.write_text(skill_text)
+            n_skills += 1
+            if args.components == "all":
+                adir = target / ".windsurf" / "rules"
+                adir.mkdir(parents=True, exist_ok=True)
+                for role in roles:
+                    src = (TEMPLATE_ROOT / "roles" / f"{role}.md").read_text()
+                    meta, body = parse_frontmatter(substitute(src, models))
+                    (adir / f"{role}.md").write_text(role_to_windsurf_rule(meta, body))
+                    n_roles += 1
+        elif tool == "qoder":
+            skill_path = target / ".qoder" / "skills" / "team-orchestrator" / "SKILL.md"
+            skill_path.parent.mkdir(parents=True, exist_ok=True)
+            skill_path.write_text(skill_text)
+            n_skills += 1
+            if args.components == "all":
+                adir = target / ".qoder" / "agents"
+                adir.mkdir(parents=True, exist_ok=True)
+                for role in roles:
+                    src = (TEMPLATE_ROOT / "roles" / f"{role}.md").read_text()
+                    meta, body = parse_frontmatter(substitute(src, models))
+                    (adir / f"{role}.md").write_text(role_to_qoder_agent(meta, body))
+                    n_roles += 1
+        elif tool == "trae":
+            skill_path = target / ".trae" / "skills" / "team-orchestrator" / "SKILL.md"
+            skill_path.parent.mkdir(parents=True, exist_ok=True)
+            skill_path.write_text(skill_text)
+            n_skills += 1
+            if args.components == "all":
+                adir = target / ".trae" / "rules"
+                adir.mkdir(parents=True, exist_ok=True)
+                for role in roles:
+                    src = (TEMPLATE_ROOT / "roles" / f"{role}.md").read_text()
+                    (adir / f"{role}.md").write_text(substitute(src, models))
+                    n_roles += 1
         else:
             skill_path = target / f".{tool}" / "skills" / "team-orchestrator" / "SKILL.md"
             skill_path.parent.mkdir(parents=True, exist_ok=True)

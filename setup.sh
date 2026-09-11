@@ -29,7 +29,7 @@ Required:
   --target <path>        existing directory to install into (must differ from source dir)
 
 Optional:
-  --tools <all|csv>      all or csv of claude,codex,codebuddy,kiro,opencode,cursor,agents (default: all)
+  --tools <all|csv>      all or csv of claude,codex,codebuddy,kiro,opencode,cursor,agents,antigravity,copilot,windsurf,qoder,trae (default: all)
   --extra <csv>          csv subset of planner,oracle,designer (default: empty)
   --components <v>       all|skills-only (default: all)
   --preset <v>           pro|plus|custom (default: pro)
