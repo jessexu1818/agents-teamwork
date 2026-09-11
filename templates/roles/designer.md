@@ -6,6 +6,7 @@ temperature: 0.3
 sandbox: read-only
 denied_tools: [write, edit]
 optional: true
+reasoning:
 ---
 
 # Designer

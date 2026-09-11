@@ -138,6 +138,57 @@ files they own.
 Engage only roles that move the task forward, but never zero once delegation
 applies.
 
+## Category routing
+
+Static routing selects the member set before any spawn. An explicit
+`--category` flag always wins; otherwise the root matches trigger phrases.
+
+| Category | Trigger phrases | Default members | Fallback chain |
+| --- | --- | --- | --- |
+| quick | tight fix, single area, clear check | worker plus tester on light settings | deep chain, then preset default |
+| deep | multi-file edit, fuzzy scope, standard path | explorer, worker, tester, reviewer | preset default, then session default |
+| ultrabrain | hardest reasoning, high risk, tangled cause | deep chain plus oracle counsel and raised review effort | deep chain, then preset default |
+| visual | interface change, screenshot, mockup, PDF brief | deep chain plus designer with local visual context | deep chain, then preset default |
+
+When a listed member cannot run, step down its fallback chain instead of
+quietly absorbing the slice at root. Keep visual context inside the designer
+turn and return only compact findings.
+
+## Resolution priority
+
+When model or effort settings disagree, earlier entries win over later ones:
+
+1. skill-invocation param passed for this run
+2. role file pin recorded in the generated config
+3. category default implied by the routing table above
+4. preset default baked at generation time
+5. session default from the surrounding tool session
+
+Reasoning convention: every role file carries a `reasoning` frontmatter key.
+Empty means use the model default. Reviewer and oracle pin `low`; all other
+roles leave it empty. Generation copies a non-empty value into
+`model_reasoning_effort` where the target format supports it.
+
+## Tool restrictions
+
+Read-only roles report findings and never alter files. Scoped writers edit
+only files the root explicitly assigned to them.
+
+| Role | May write | May edit | Scope note |
+| --- | --- | --- | --- |
+| explorer | no | no | mapping only, no file changes |
+| reviewer | no | no | audit only, no fixes applied |
+| researcher | no | no | outside facts only, no code changes |
+| oracle | no | no | advisory only, no file changes |
+| designer | no | no | spec and visual notes only, no implementation |
+| worker | yes | yes | owned files only, as delegated |
+| tester | yes | yes | test files only when asked or required |
+| planner | yes | yes | plan artifact under `.plans/` only |
+
+Deny matrix summary: explorer, reviewer, researcher, oracle, and designer
+MUST NOT write or edit. Worker, tester, and planner may write and edit strictly
+within their assigned scope and must stop and escalate on overlap.
+
 ## Parallelism
 
 Launch separable work together; sequence only genuine dependencies.

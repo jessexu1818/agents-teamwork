@@ -4,6 +4,7 @@ description: Bounded implementer for scoped code changes with explicit ownership
 model: "{{WORKER_MODEL}}"
 temperature: 0.2
 sandbox: workspace-write
+reasoning:
 ---
 
 # Worker

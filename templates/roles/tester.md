@@ -4,6 +4,7 @@ description: Independent verifier that reproduces behavior and runs the smallest
 model: "{{TESTER_MODEL}}"
 temperature: 0.1
 sandbox: workspace-write
+reasoning:
 ---
 
 # Tester

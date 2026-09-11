@@ -6,6 +6,7 @@ effort: "{{REVIEWER_EFFORT}}"
 temperature: 0.1
 sandbox: read-only
 denied_tools: [write, edit]
+reasoning: low
 ---
 
 # Reviewer

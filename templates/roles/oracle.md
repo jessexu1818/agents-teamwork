@@ -6,6 +6,7 @@ temperature: 0.1
 sandbox: read-only
 denied_tools: [write, edit]
 optional: true
+reasoning: low
 ---
 
 # Oracle

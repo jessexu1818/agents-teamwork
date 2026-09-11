@@ -5,6 +5,7 @@ model: "{{EXPLORER_MODEL}}"
 temperature: 0.1
 sandbox: read-only
 denied_tools: [write, edit]
+reasoning:
 ---
 
 # Explorer

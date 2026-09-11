@@ -5,6 +5,7 @@ model: "{{PLANNER_MODEL}}"
 temperature: 0.3
 sandbox: workspace-write
 optional: true
+reasoning:
 ---
 
 # Planner

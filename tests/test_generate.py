@@ -219,3 +219,55 @@ def test_qoder_tools_readonly_vs_write():
         wrk_tools = next(l for l in wrk.splitlines() if l.startswith("tools:"))
         assert "Edit" not in exp_tools and "Write" not in exp_tools
         assert "Edit" in wrk_tools and "Write" in wrk_tools
+
+
+def test_skill_category_routing_table_and_resolution_priority():
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        t = Path(td) / "out"
+        r = run_gen(t, "--tools", "agents", "--components", "all",
+                    "--preset", "pro")
+        assert r.returncode == 0, f"stderr: {r.stderr}"
+        text = (t / ".agents" / "skills" / "team-orchestrator" / "SKILL.md").read_text(encoding="utf-8")
+        assert "Category routing" in text
+        assert "Resolution priority" in text
+        for cat in ["quick", "deep", "ultrabrain", "visual"]:
+            assert any("|" in line and cat in line for line in text.splitlines()), \
+                f"missing table row for category {cat}"
+
+
+def test_skill_tool_restrictions_deny_matrix():
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        t = Path(td) / "out"
+        r = run_gen(t, "--tools", "agents", "--components", "all",
+                    "--preset", "pro")
+        assert r.returncode == 0, f"stderr: {r.stderr}"
+        text = (t / ".agents" / "skills" / "team-orchestrator" / "SKILL.md").read_text(encoding="utf-8")
+        assert ("Tool restrictions" in text or "Deny matrix" in text)
+        for role in ["explorer", "reviewer", "researcher", "oracle", "designer"]:
+            assert role in text, f"missing read-only role {role}"
+        low = text.lower()
+        assert "write" in low and "edit" in low
+
+
+def test_codex_reviewer_toml_has_reasoning_effort():
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        t = Path(td) / "out"
+        r = run_gen(t, "--tools", "codex", "--components", "all",
+                    "--preset", "pro")
+        assert r.returncode == 0, f"stderr: {r.stderr}"
+        text = (t / ".codex" / "agents" / "reviewer.toml").read_text(encoding="utf-8")
+        assert "model_reasoning_effort" in text
+
+
+def test_role_templates_have_reasoning_key():
+    import sys
+    sys.path.insert(0, str(REPO / "scripts"))
+    import generate
+    import importlib
+    importlib.reload(generate)
+    for p in (REPO / "templates" / "roles").glob("*.md"):
+        meta, _ = generate.parse_frontmatter(p.read_text(encoding="utf-8"))
+        assert "reasoning" in meta, f"missing reasoning in {p.name}"

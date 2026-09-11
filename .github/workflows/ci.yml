@@ -23,6 +23,16 @@ jobs:
             echo "No tests directory, skipping."
           fi
 
+      - name: Verify generated output (if present)
+        run: |
+          if [ -f scripts/generate.py ] && [ -f scripts/verify.py ]; then
+            TMPDIR=$(mktemp -d)
+            python3 scripts/generate.py --target "$TMPDIR/out" --tools all --extra planner,oracle,designer --preset pro
+            python3 scripts/verify.py --target "$TMPDIR/out"
+          else
+            echo "No generator/verifier, skipping verify."
+          fi
+
       - name: Shellcheck setup.sh (if present)
         run: |
           if [ -f setup.sh ]; then

@@ -116,6 +116,8 @@ def role_to_toml(meta, body):
     lines.append(f"name = {toml_str(meta.get('name', ''))}")
     lines.append(f"description = {toml_str(meta.get('description', ''))}")
     lines.append(f"model = {toml_str(meta.get('model', ''))}")
+    if meta.get("reasoning"):
+        lines.append(f"model_reasoning_effort = {toml_str(meta['reasoning'])}")
     if meta.get("sandbox"):
         lines.append(f"sandbox_mode = {toml_str(meta['sandbox'])}")
     if meta.get("temperature"):

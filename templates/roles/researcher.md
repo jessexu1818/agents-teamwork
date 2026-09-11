@@ -5,6 +5,7 @@ model: "{{RESEARCHER_MODEL}}"
 temperature: 0.2
 sandbox: read-only
 denied_tools: [write, edit]
+reasoning:
 ---
 
 # Researcher
