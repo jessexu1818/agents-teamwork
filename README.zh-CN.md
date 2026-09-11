@@ -1,6 +1,6 @@
 # agents-teamwork
 
-[![status](https://img.shields.io/badge/status-v1-blue)]() [![tools](https://img.shields.io/badge/tools-12-green)]() [![license](https://img.shields.io/badge/license-MIT-lightgrey)]()
+[![status](https://img.shields.io/badge/status-v1-blue)]() [![tools](https://img.shields.io/badge/tools-12-green)]() [![license](https://img.shields.io/badge/license-Apache--2.0-lightgrey)]()
 
 通用多 IDE 智能体协作技能：一个 `team-orchestrator` 技能加按工具生成的角色配置，
 把任何受支持的 IDE 变成“根节点 + 专家子智能体”团队。根节点负责架构、任务分解、
