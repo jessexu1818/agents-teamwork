@@ -57,7 +57,7 @@ def resolve_tools(s):
     for t in tools:
         if t not in ALL_TOOLS:
             sys.exit(f"unknown tool: {t}")
-    return tools
+    return list(dict.fromkeys(tools))
 
 
 def resolve_extra(s):
@@ -119,14 +119,18 @@ def role_to_toml(meta, body):
         lines.append(f"sandbox_mode = {toml_str(meta['sandbox'])}")
     if meta.get("temperature"):
         lines.append(f"temperature = {meta['temperature']}")
-    safe = body.replace('"""', '\\"\\"\\"')
+    # Escape backslashes first, then triple-quotes (order matters for valid TOML).
+    safe = body.replace("\\", "\\\\").replace('"""', '\\"\\"\\"')
     lines.append(f'developer_instructions = """{safe}"""')
     return "\n".join(lines) + "\n"
 
 
 def main(argv=None):
     args = parse_args(argv)
-    tools = resolve_tools(args.tools)
+    tools = list(dict.fromkeys(resolve_tools(args.tools)))
+    if not tools:
+        parser = argparse.ArgumentParser()
+        parser.error("--tools resolved to empty set")
     extras = resolve_extra(args.extra)
     roles = list(CORE_ROLES) + [e for e in EXTRA_CHOICES if e in extras]
     models = build_models(args.preset, args)

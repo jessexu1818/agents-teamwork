@@ -107,3 +107,25 @@ def test_idempotent_run_twice_same_output():
         r2 = run_gen(t, *args)
         assert r2.returncode == 0, f"stderr: {r2.stderr}"
         assert snapshot() == first
+
+
+def test_role_to_toml_escapes_backslash():
+    import sys
+    sys.path.insert(0, str(REPO / "scripts"))
+    import generate
+    import importlib
+    importlib.reload(generate)
+    body = 'path C:\\path\\x and quote """ end'
+    toml_text = generate.role_to_toml(
+        {"name": "t", "description": "d", "model": "m"}, body)
+    data = tomllib.loads(toml_text)
+    assert data["developer_instructions"] == body
+
+
+def test_empty_tools_exits_nonzero():
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        t = Path(td) / "out"
+        r = run_gen(t, "--tools", "", "--components", "all",
+                    "--preset", "pro")
+        assert r.returncode != 0
