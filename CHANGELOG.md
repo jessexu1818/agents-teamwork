@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-09-11
+
 ### Added
 
-- Initial skeleton and OSS compliance files.
+- `team-orchestrator` skill: delegation gate, root responsibilities, spawn
+  policy with per-role model override and `--category`
+  (`quick|deep|ultrabrain|visual`), delegation contract, completion gate.
+- 8 role templates: 5 core (`explorer/worker/tester/reviewer/researcher`,
+  `worker` with `quick|deep` modes) + 3 optional
+  (`planner/oracle/designer` via `--extra`).
+- `scripts/generate.py`: renders 7 tool targets
+  (`.claude/.codex/.codebuddy/.kiro/.opencode/.cursor/.agents`),
+  Codex TOML conversion + `config.toml`, `--preset pro|plus|custom`,
+  `--components all|skills-only`.
+- `setup.sh` / `setup.ps1`: parameterized thin wrappers with overwrite
+  confirmation and type-conflict guards.
+- Skills-only install as the recommended 30-second path (zero scripts).
+- Docs: `README.md` (EN) + `README.zh-CN.md`, `guides/` (quickstart,
+  model-matrix, categories, planning, global-setup, 7 tool guides).
+- Tests: 11 passing (`tests/test_generate.py`, `tests/test_setup_sh.py`).
