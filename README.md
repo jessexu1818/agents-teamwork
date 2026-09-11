@@ -1,6 +1,8 @@
 # agents-teamwork
 
-[![status](https://img.shields.io/badge/status-v1-blue)]() [![tools](https://img.shields.io/badge/tools-12-green)]() [![license](https://img.shields.io/badge/license-Apache--2.0-lightgrey)]()
+[![status](https://img.shields.io/badge/status-v1-blue)]() [![tools](https://img.shields.io/badge/tools-12-green)]() [![license](https://img.shields.io/badge/license-Apache--2.0-lightgrey)]() [![stars](https://img.shields.io/github/stars/jessexu1818/agents-teamwork?style=social)]()
+
+![agents-teamwork: one team-orchestrator skill + role configs for 12 coding tools](assets/social-preview.png)
 
 Universal multi-IDE agent teamwork skills: one `team-orchestrator` skill plus
 per-tool role configs that turn any supported IDE into a root-plus-specialists
