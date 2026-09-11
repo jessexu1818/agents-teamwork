@@ -24,8 +24,8 @@ derogatory comments, and unwelcome sexual attention.
 ## Enforcement
 
 Instances of abusive, harassing, or otherwise unacceptable behavior
-may be reported to the project team at maintainer@example.com
-(placeholder address, to be replaced with a real maintainer contact).
+may be reported to the project team via a private GitHub security
+advisory or a direct message to a maintainer.
 All complaints will be reviewed and investigated promptly and fairly.
 
 This is a short-form adoption of the Contributor Covenant v2.1.

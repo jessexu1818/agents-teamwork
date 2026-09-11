@@ -14,9 +14,7 @@ on `main` first and are noted in `CHANGELOG.md`.
 
 Do not open a public issue for security vulnerabilities.
 
-- Open a private security advisory on GitHub, or
-- Email maintainer@example.com (placeholder address, to be replaced
-  with a real maintainer contact).
+- Open a private security advisory on GitHub (preferred, no email needed).
 
 Include: affected version/commit, steps to reproduce, and impact.
 
