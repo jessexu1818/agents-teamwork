@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Category routing (`quick|deep|ultrabrain|visual`): invocation-time model
+  selection with documented precedence over presets and per-role pins.
+- `scripts/verify.py`: static check for generated skill/role outputs
+  (paths, model fields, Codex TOML conversion).
+- CI verify step: test gate plus verify gate on generated outputs.
 - Docs: 5 new tool guides (`antigravity/copilot/windsurf/qoder/trae`) with
   skill/role paths, model-field mapping, limits, and verify commands; global
   paths table and EN/ZH tool matrices updated to 12 tools.

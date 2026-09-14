@@ -16,6 +16,20 @@
   归属冲突由根节点仲裁。
 - 分类路由（`quick` / `deep` / `ultrabrain` / `visual`）按任务难度调配成本。
 
+## TL;DR 安装
+
+| 模式 | 命令 / 指引 |
+| --- | --- |
+| 纯技能（30 秒） | `cp templates/skills/team-orchestrator/SKILL.md <repo>/.agents/skills/team-orchestrator/SKILL.md` |
+| 完整安装 | `./setup.sh --target <repo> --tools all --components all --yes` |
+| 全局安装 | 见 [guides/global-setup.md](guides/global-setup.md) |
+
+粘贴到你的智能体：
+
+```text
+请按本仓库 guides/quickstart.md 安装 team-orchestrator。除非我要求完整安装，否则使用纯技能模式，并报告复制了哪些文件。
+```
+
 ## 拓扑结构
 
 ```text

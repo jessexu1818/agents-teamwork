@@ -1,0 +1,15 @@
+# agents-teamwork
+
+Universal multi-IDE agent teamwork: one `team-orchestrator` skill plus
+per-tool role configs (root owns architecture and integration;
+subagents supply bounded evidence and execution only).
+
+Start here:
+- https://raw.githubusercontent.com/jessexu1818/agents-teamwork/main/README.md
+- https://raw.githubusercontent.com/jessexu1818/agents-teamwork/main/guides/quickstart.md
+- https://raw.githubusercontent.com/jessexu1818/agents-teamwork/main/guides/model-matrix.md
+- https://raw.githubusercontent.com/jessexu1818/agents-teamwork/main/templates/skills/team-orchestrator/SKILL.md
+
+Install: skills-only copy is the default 30-second path; full install
+via `./setup.sh --target <repo> --tools all --components all --yes`;
+per-tool global setup is manual (see global-setup guide).

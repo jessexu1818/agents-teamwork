@@ -1,0 +1,56 @@
+name: Bug report
+description: Report a reproducible problem
+labels: ["bug"]
+body:
+  - type: checkboxes
+    id: requirements
+    attributes:
+      label: Requirements
+      options:
+        - label: I searched existing issues for duplicates
+          required: true
+        - label: I write in English
+          required: true
+        - label: I provide the repo version/commit below
+          required: true
+        - label: I provide repro steps and expected vs actual below
+          required: true
+  - type: input
+    id: version
+    attributes:
+      label: Repo version / commit
+      description: Tag or commit SHA (e.g. v0.1.0 or output of git log --oneline -1).
+      placeholder: v0.1.0 / commit SHA
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Repro steps
+      description: Minimal steps to reproduce the problem.
+      placeholder: "1. ...\n2. ...\n3. ..."
+    validations:
+      required: true
+  - type: textarea
+    id: expected-vs-actual
+    attributes:
+      label: Expected vs actual
+      description: What you expected to happen, and what happened instead.
+      placeholder: "Expected: ...\nActual: ..."
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Python version, tool name/version.
+      placeholder: "OS: ...\nPython: ...\nTool: ..."
+    validations:
+      required: false
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Logs or screenshots. Do not include secrets.
+    validations:
+      required: false

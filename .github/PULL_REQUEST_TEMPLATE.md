@@ -1,12 +1,26 @@
-# Pull Request
-
 ## Summary
 
-Brief description of the change.
+What changed and why.
 
-## Checklist
+## Changes
 
-- [ ] Tests added or updated (`tests/`), and `python3 -m pytest tests/ -q` passes
-- [ ] Docs updated (`README.md`, `guides/`, or `CHANGELOG.md` as needed)
-- [ ] No secrets or credentials included
-- [ ] No verbatim copying from incompatibly licensed prompts
+- ...
+- ...
+
+## QA & Evidence
+
+Commands run and observed output:
+
+```sh
+python3 -m pytest tests/ -q
+```
+
+Observed: ...
+
+## Risks
+
+What could break, and rollback plan.
+
+## Related issues
+
+Closes #...

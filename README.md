@@ -19,6 +19,20 @@ the final answer; subagents supply bounded evidence and execution only.
 - Category routing (`quick` / `deep` / `ultrabrain` / `visual`) scales cost to
   task difficulty.
 
+## TL;DR install
+
+| Mode | Command / pointer |
+| --- | --- |
+| Skills-only (30s) | `cp templates/skills/team-orchestrator/SKILL.md <repo>/.agents/skills/team-orchestrator/SKILL.md` |
+| Full install | `./setup.sh --target <repo> --tools all --components all --yes` |
+| Global | See [guides/global-setup.md](guides/global-setup.md) |
+
+Paste into your agent:
+
+```text
+Install team-orchestrator from this repo by following guides/quickstart.md. Use skills-only mode unless I ask for a full install, then report what was copied.
+```
+
 ## Topology
 
 ```text
