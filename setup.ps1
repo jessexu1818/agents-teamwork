@@ -180,7 +180,7 @@ function Install-Entry([string]$Entry, [string]$Src, [string]$Dst) {
         if ($null -eq $c) { $c = Get-Command python -ErrorAction SilentlyContinue }
         if ($null -ne $c) { $pyExe = $c.Source }
         if ($pyExe) {
-          & $pyExe (Join-Path $ScriptDir "scripts/generate.py") --merge-agents-md "$Dst" --agents-template "$Src" | Out-Null
+          & $pyExe (Join-Path $ScriptDir "scripts/generate.py") --merge-agents-md "$Dst" --agents-template (Join-Path $ScriptDir "templates/AGENTS.md") | Out-Null
           Write-Host "Merged $Entry."
           $script:Updated++
           return

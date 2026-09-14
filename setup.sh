@@ -279,7 +279,7 @@ install_entry() {
       cp -R "$staged_path"/. "$live_path"/
     elif [ -f "$staged_path" ] && { [ -f "$live_path" ] || [ ! -e "$live_path" ]; }; then
       if [ "$entry_name" = "AGENTS.md" ] && [ -f "$live_path" ] && [ ! -L "$live_path" ]; then
-        python3 "$SCRIPT_DIR/scripts/generate.py" --merge-agents-md "$live_path" --agents-template "$staged_path" >/dev/null
+        python3 "$SCRIPT_DIR/scripts/generate.py" --merge-agents-md "$live_path" --agents-template "$SCRIPT_DIR/templates/AGENTS.md" >/dev/null
         printf 'Merged %s.\n' "$entry_name"
         N_UPDATED=$((N_UPDATED + 1))
         return 0

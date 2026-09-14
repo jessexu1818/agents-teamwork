@@ -109,3 +109,41 @@ def test_setup_sh_preserves_custom_agents_md():
         content = (t / "AGENTS.md").read_text(encoding="utf-8")
         assert custom in content
         assert BEGIN in content and END in content
+
+
+def test_setup_sh_single_markers():
+    with tempfile.TemporaryDirectory() as td:
+        t = Path(td) / "out"
+        t.mkdir()
+        custom = "# User project notes\nKeep me safe.\n"
+        (t / "AGENTS.md").write_text(custom, encoding="utf-8")
+        r = subprocess.run(
+            ["sh", str(SETUP), "--target", str(t),
+             "--tools", "agents", "--components", "all", "--yes"],
+            capture_output=True, text=True, cwd=str(REPO),
+        )
+        assert r.returncode == 0, f"stderr: {r.stderr}\nstdout: {r.stdout}"
+        content = (t / "AGENTS.md").read_text(encoding="utf-8")
+        assert custom in content
+        assert content.count(BEGIN) == 1, f"expected 1 BEGIN, got {content.count(BEGIN)}:\n{content}"
+        assert content.count(END) == 1, f"expected 1 END, got {content.count(END)}:\n{content}"
+
+
+def test_setup_sh_second_run_byte_identical():
+    with tempfile.TemporaryDirectory() as td:
+        t = Path(td) / "out"
+        t.mkdir()
+        custom = "# User project notes\nKeep me safe.\n"
+        (t / "AGENTS.md").write_text(custom, encoding="utf-8")
+        args = ["sh", str(SETUP), "--target", str(t),
+                "--tools", "agents", "--components", "all", "--yes"]
+        r1 = subprocess.run(args, capture_output=True, text=True, cwd=str(REPO))
+        assert r1.returncode == 0, f"stderr: {r1.stderr}\nstdout: {r1.stdout}"
+        first = (t / "AGENTS.md").read_bytes()
+        r2 = subprocess.run(args, capture_output=True, text=True, cwd=str(REPO))
+        assert r2.returncode == 0, f"stderr: {r2.stderr}\nstdout: {r2.stdout}"
+        second = (t / "AGENTS.md").read_bytes()
+        assert second == first, "second identical setup.sh run must leave AGENTS.md byte-identical"
+        text = second.decode("utf-8")
+        assert text.count(BEGIN) == 1 and text.count(END) == 1
+        assert custom in text

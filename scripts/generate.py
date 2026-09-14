@@ -34,6 +34,8 @@ AGENTS_END = "<!-- agents-teamwork:end -->"
 
 def merge_agents_md(existing: str | None, template: str) -> str:
     inner = template.strip()
+    while AGENTS_BEGIN in inner and AGENTS_END in inner:
+        inner = inner.split(AGENTS_BEGIN, 1)[1].rsplit(AGENTS_END, 1)[0].strip()
     fresh_block = f"{AGENTS_BEGIN}\n{inner}\n{AGENTS_END}\n"
     fresh_inline = f"{AGENTS_BEGIN}\n{inner}\n{AGENTS_END}"
     if existing is None or existing == "":
