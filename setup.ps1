@@ -185,7 +185,7 @@ function Install-Entry([string]$Entry, [string]$Src, [string]$Dst) {
           $script:Updated++
           return
         }
-        Copy-Item -LiteralPath $Src -Destination $Dst -Force
+        Fail "python3 (or python) is required to merge AGENTS.md without overwriting user content"
       } else {
         Copy-Item -LiteralPath $Src -Destination $Dst -Force
       }
