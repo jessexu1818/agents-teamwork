@@ -1,7 +1,8 @@
 #!/bin/sh
 # setup.sh: thin wrapper around scripts/generate.py with safe install prompts (POSIX sh).
 set -eu
-SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+unset CDPATH
+SCRIPT_DIR=$(cd -- "$(dirname -- "$0")" && pwd -P)
 
 TARGET=""
 TOOLS="all"
@@ -125,7 +126,7 @@ if [ ! -d "$TARGET" ]; then
   fail "target must be an existing directory: $TARGET"
 fi
 
-TARGET_DIR=$(CDPATH= cd -- "$TARGET" && pwd -P)
+TARGET_DIR=$(cd -- "$TARGET" && pwd -P)
 if [ "$TARGET_DIR" = "$SCRIPT_DIR" ]; then
   fail "target must differ from the setup source directory"
 fi
