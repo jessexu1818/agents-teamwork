@@ -158,3 +158,41 @@ def test_setup_sh_e2e_preserves_mcp_keeps_model_adds_agents():
         assert data["agents"]["default_subagent_model"] == WORKER
         combined = (r.stdout or "") + (r.stderr or "")
         assert "keep" in combined.lower() or "kept" in combined.lower() or "custom" in combined.lower() or "model" in combined.lower()
+
+
+def test_spaced_agents_header_single_table_parses():
+    import re
+    existing = f'model = "{ORCH}"\n[ agents ]\nother = "keep"\n'
+    new, status, warn = generate.merge_config_toml(existing, ORCH, WORKER)
+    assert status == "merged"
+    data = tomllib.loads(new)
+    assert data["agents"]["other"] == "keep"
+    assert data["agents"]["default_subagent_model"] == WORKER
+    hdrs = [l for l in new.splitlines()
+            if re.match(r"^\s*\[\s*['\"]?agents['\"]?\s*\]\s*(#.*)?$", l)]
+    assert len(hdrs) == 1
+
+
+def test_crlf_existing_merged_output_still_crlf():
+    existing = f'model = "{ORCH}"\r\n[mcp]\r\ncommand = "x"\r\n'
+    new, status, warn = generate.merge_config_toml(existing, ORCH, WORKER)
+    assert status == "merged"
+    assert "\r\n" in new
+    assert "\n" not in new.replace("\r\n", "")
+    data = tomllib.loads(new)
+    assert data["agents"]["default_subagent_model"] == WORKER
+
+
+def test_direct_target_run_conflict_warns_on_stderr():
+    with tempfile.TemporaryDirectory() as td:
+        t = Path(td) / "out"
+        codex = t / ".codex"
+        codex.mkdir(parents=True)
+        (codex / "config.toml").write_text('model = "custom"\n')
+        r = subprocess.run(
+            [sys.executable, str(GEN), "--target", str(t),
+             "--tools", "codex", "--components", "all", "--preset", "pro"],
+            capture_output=True, text=True, cwd=str(REPO),
+        )
+        assert r.returncode == 0, f"stderr: {r.stderr}\nstdout: {r.stdout}"
+        assert "kept-user-values" in (r.stderr or "").lower() or "keeping existing" in (r.stderr or "").lower()

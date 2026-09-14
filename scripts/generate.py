@@ -52,7 +52,7 @@ def write_if_changed(path, text):
                 return False
         except OSError:
             pass
-    p.write_text(text, encoding="utf-8")
+    p.write_bytes(new_bytes)
     return True
 
 
@@ -112,6 +112,8 @@ def merge_config_toml(existing, orchestrator, worker):
                     new_block_lines.append(line)
             new_block = "\n".join(new_block_lines)
             merged1 = before + new_block + after
+            if "\r\n" in existing:
+                merged1 = merged1.replace("\r\n", "\n").replace("\n", "\r\n")
             if merged1 != existing:
                 try:
                     tomllib.loads(merged1)
@@ -189,8 +191,9 @@ def merge_config_toml(existing, orchestrator, worker):
         return line.strip().startswith("[")
 
     def _is_agents_header(line):
-        return re.match(r"^\s*\[agents\]\s*(#.*)?$", line) is not None
+        return re.match(r"^\s*\[\s*['\"]?agents['\"]?\s*\]\s*(#.*)?$", line) is not None
 
+    is_crlf = "\r\n" in existing
     lines = existing.splitlines()
     if missing_root:
         idx = None
@@ -204,6 +207,7 @@ def merge_config_toml(existing, orchestrator, worker):
         else:
             lines.insert(idx, new_line)
     if missing_agents:
+        has_agents_table = isinstance(data.get("agents"), dict)
         agents_idx = None
         for i, ln in enumerate(lines):
             if _is_agents_header(ln):
@@ -212,12 +216,20 @@ def merge_config_toml(existing, orchestrator, worker):
         new_key = f"default_subagent_model = {toml_str(worker)}"
         if agents_idx is not None:
             lines.insert(agents_idx + 1, new_key)
+        elif has_agents_table:
+            # Table exists but no explicit header found (e.g. inline table):
+            # appending a second [agents] block would be invalid TOML.
+            # Leave untouched rather than corrupt.
+            return (existing, "left-untouched",
+                    "left-untouched: existing [agents] table has no header line; leaving unchanged")
         else:
             lines.append(TOML_BEGIN)
             lines.append("[agents]")
             lines.append(new_key)
             lines.append(TOML_END)
     new_text = "\n".join(lines) + "\n"
+    if is_crlf:
+        new_text = new_text.replace("\r\n", "\n").replace("\n", "\r\n")
     warn = None
     if conflicts:
         warn = f"kept-user-values: keeping existing {', '.join(conflicts)}"
@@ -415,11 +427,11 @@ def main(argv=None):
             if warn:
                 print(warn, file=sys.stderr)
             return
-        existing_text = dest.read_text(encoding="utf-8")
+        existing_text = dest.read_bytes().decode("utf-8")
         new_text, status, warn = merge_config_toml(
             existing_text, models["orchestrator"], models["worker"])
         if new_text != existing_text:
-            dest.write_text(new_text, encoding="utf-8")
+            dest.write_bytes(new_text.encode("utf-8"))
         print(status)
         if warn:
             print(warn, file=sys.stderr)
@@ -452,9 +464,11 @@ def main(argv=None):
                     write_if_changed(adir / f"{role}.toml", role_to_toml(meta, body))
                     n_roles += 1
                 cfg_path = target / ".codex" / "config.toml"
-                existing_cfg = cfg_path.read_text(encoding="utf-8") if cfg_path.is_file() else None
-                merged_cfg, _, _ = merge_config_toml(
+                existing_cfg = cfg_path.read_bytes().decode("utf-8") if cfg_path.is_file() else None
+                merged_cfg, _, warn = merge_config_toml(
                     existing_cfg, models["orchestrator"], models["worker"])
+                if warn:
+                    print(warn, file=sys.stderr)
                 write_if_changed(cfg_path, merged_cfg)
         elif tool == "antigravity":
             skill_path = target / ".agents" / "skills" / "team-orchestrator" / "SKILL.md"

@@ -311,16 +311,16 @@ install_entry() {
         if [ -n "$ORACLE_MODEL" ]; then set -- "$@" --oracle-model "$ORACLE_MODEL"; fi
         if [ -n "$DESIGNER_MODEL" ]; then set -- "$@" --designer-model "$DESIGNER_MODEL"; fi
         if [ -n "$REVIEWER_EFFORT" ]; then set -- "$@" --reviewer-effort "$REVIEWER_EFFORT"; fi
-        "$@"
-        printf 'Merged %s.\n' "$entry_name"
+        merge_status=$("$@")
+        printf '%s\n' ".codex/config.toml: $merge_status"
         N_UPDATED=$((N_UPDATED + 1))
         return 0
       fi
       cp -R "$staged_path"/. "$live_path"/
     elif [ -f "$staged_path" ] && { [ -f "$live_path" ] || [ ! -e "$live_path" ]; }; then
       if [ "$entry_name" = "AGENTS.md" ] && [ -f "$live_path" ] && [ ! -L "$live_path" ]; then
-        python3 "$SCRIPT_DIR/scripts/generate.py" --merge-agents-md "$live_path" --agents-template "$SCRIPT_DIR/templates/AGENTS.md" >/dev/null
-        printf 'Merged %s.\n' "$entry_name"
+        agents_status=$(python3 "$SCRIPT_DIR/scripts/generate.py" --merge-agents-md "$live_path" --agents-template "$SCRIPT_DIR/templates/AGENTS.md")
+        printf '%s\n' "AGENTS.md: $agents_status"
         N_UPDATED=$((N_UPDATED + 1))
         return 0
       fi

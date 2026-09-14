@@ -193,9 +193,9 @@ function Install-Entry([string]$Entry, [string]$Src, [string]$Dst) {
         if (-not [string]::IsNullOrWhiteSpace($OracleModel)) { $mergeArgs += @("--oracle-model", $OracleModel) }
         if (-not [string]::IsNullOrWhiteSpace($DesignerModel)) { $mergeArgs += @("--designer-model", $DesignerModel) }
         if (-not [string]::IsNullOrWhiteSpace($ReviewerEffort)) { $mergeArgs += @("--reviewer-effort", $ReviewerEffort) }
-        & $pyExe @mergeArgs
+        $mergeStatus = & $pyExe @mergeArgs
         if ($LASTEXITCODE -ne 0) { Fail ".codex/config.toml merge failed with exit code $LASTEXITCODE" }
-        Write-Host "Merged $Entry."
+        Write-Host ".codex/config.toml: $mergeStatus"
         $script:Updated++
         return
       }
@@ -210,8 +210,8 @@ function Install-Entry([string]$Entry, [string]$Src, [string]$Dst) {
         if ($null -eq $c) { $c = Get-Command python -ErrorAction SilentlyContinue }
         if ($null -ne $c) { $pyExe = $c.Source }
         if ($pyExe) {
-          & $pyExe (Join-Path $ScriptDir "scripts/generate.py") --merge-agents-md "$Dst" --agents-template (Join-Path $ScriptDir "templates/AGENTS.md") | Out-Null
-          Write-Host "Merged $Entry."
+          $agentsStatus = & $pyExe (Join-Path $ScriptDir "scripts/generate.py") --merge-agents-md "$Dst" --agents-template (Join-Path $ScriptDir "templates/AGENTS.md")
+          Write-Host "AGENTS.md: $agentsStatus"
           $script:Updated++
           return
         }
