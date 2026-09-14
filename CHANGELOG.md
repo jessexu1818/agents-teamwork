@@ -20,6 +20,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--tools` selection candidate set expanded 7->12 (selection flag already
   existed; `--tools all` now covers all 12 targets).
 
+### Fixed
+
+- `AGENTS.md` installs now merge via a `<!-- agents-teamwork:begin/end -->`
+  marker block instead of overwriting; existing user content is preserved.
+
 ## [0.1.0] - 2026-09-11
 
 ### Added

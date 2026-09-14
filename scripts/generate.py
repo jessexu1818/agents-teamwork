@@ -28,6 +28,31 @@ PRESETS = {"pro": PRO, "plus": PLUS, "custom": CUSTOM}
 
 TEMPLATE_ROOT = Path(__file__).resolve().parent.parent / "templates"
 
+AGENTS_BEGIN = "<!-- agents-teamwork:begin -->"
+AGENTS_END = "<!-- agents-teamwork:end -->"
+
+
+def merge_agents_md(existing: str | None, template: str) -> str:
+    inner = template.strip()
+    fresh_block = f"{AGENTS_BEGIN}\n{inner}\n{AGENTS_END}\n"
+    fresh_inline = f"{AGENTS_BEGIN}\n{inner}\n{AGENTS_END}"
+    if existing is None or existing == "":
+        return fresh_block
+    bi = existing.find(AGENTS_BEGIN)
+    if bi != -1:
+        ei = existing.find(AGENTS_END, bi + len(AGENTS_BEGIN))
+        if ei != -1:
+            before = existing[:bi]
+            after = existing[ei + len(AGENTS_END):]
+            return before + fresh_inline + after
+    if existing.endswith("\n\n"):
+        sep = ""
+    elif existing.endswith("\n"):
+        sep = "\n"
+    else:
+        sep = "\n\n"
+    return existing + sep + fresh_block
+
 
 def parse_args(argv=None):
     p = argparse.ArgumentParser(
@@ -41,13 +66,18 @@ def parse_args(argv=None):
     p.add_argument("--extra", default="",
                    help="csv subset of planner,oracle,designer (default empty)")
     p.add_argument("--components", default="all", choices=["all", "skills-only"])
-    p.add_argument("--target", required=True, help="output directory")
+    p.add_argument("--target", required=False, default=None, help="output directory")
+    p.add_argument("--merge-agents-md", default=None, help="merge AGENTS.md block into FILE and exit")
+    p.add_argument("--agents-template", default=None, help="template file for --merge-agents-md (default templates/AGENTS.md)")
     p.add_argument("--preset", default="pro", choices=["pro", "plus", "custom"])
     for r in ["orchestrator", "explorer", "worker", "tester", "reviewer",
               "researcher", "planner", "oracle", "designer"]:
         p.add_argument(f"--{r}-model", default=None, help=f"override {r} model")
     p.add_argument("--reviewer-effort", default=None, help="override reviewer effort")
-    return p.parse_args(argv)
+    args = p.parse_args(argv)
+    if args.merge_agents_md is None and not args.target:
+        p.error("the following arguments are required: --target")
+    return args
 
 
 def resolve_tools(s):
@@ -162,6 +192,23 @@ def role_to_qoder_agent(meta, body):
 
 def main(argv=None):
     args = parse_args(argv)
+    if args.merge_agents_md is not None:
+        tmpl_path = Path(args.agents_template) if args.agents_template else (TEMPLATE_ROOT / "AGENTS.md")
+        template_text = tmpl_path.read_text()
+        dest = Path(args.merge_agents_md)
+        if not dest.exists():
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text(merge_agents_md(None, template_text))
+            print("written")
+            return
+        existing_text = dest.read_text()
+        merged_text = merge_agents_md(existing_text, template_text)
+        if merged_text == existing_text:
+            print("unchanged")
+        else:
+            dest.write_text(merged_text)
+            print("merged")
+        return
     tools = list(dict.fromkeys(resolve_tools(args.tools)))
     if not tools:
         parser = argparse.ArgumentParser()
@@ -271,7 +318,10 @@ def main(argv=None):
 
     if args.components == "all":
         (target).mkdir(parents=True, exist_ok=True)
-        (target / "AGENTS.md").write_text((TEMPLATE_ROOT / "AGENTS.md").read_text())
+        agents_path = target / "AGENTS.md"
+        template_text = (TEMPLATE_ROOT / "AGENTS.md").read_text()
+        existing_text = agents_path.read_text() if agents_path.is_file() else None
+        agents_path.write_text(merge_agents_md(existing_text, template_text))
 
     print(f"Generated {n_roles} roles + {n_skills} skills for [{','.join(tools)}] "
           f"to {target} (preset={args.preset}, components={args.components})")

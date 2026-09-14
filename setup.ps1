@@ -174,7 +174,21 @@ function Install-Entry([string]$Entry, [string]$Src, [string]$Dst) {
         Copy-Item -LiteralPath $child.FullName -Destination (Join-Path $Dst $child.Name) -Recurse -Force
       }
     } else {
-      Copy-Item -LiteralPath $Src -Destination $Dst -Force
+      if (($Entry -eq "AGENTS.md") -and (-not $srcIsDir) -and (Test-Path -LiteralPath $Dst -PathType Leaf) -and (-not $dstIsLink)) {
+        $pyExe = $null
+        $c = Get-Command python3 -ErrorAction SilentlyContinue
+        if ($null -eq $c) { $c = Get-Command python -ErrorAction SilentlyContinue }
+        if ($null -ne $c) { $pyExe = $c.Source }
+        if ($pyExe) {
+          & $pyExe (Join-Path $ScriptDir "scripts/generate.py") --merge-agents-md "$Dst" --agents-template "$Src" | Out-Null
+          Write-Host "Merged $Entry."
+          $script:Updated++
+          return
+        }
+        Copy-Item -LiteralPath $Src -Destination $Dst -Force
+      } else {
+        Copy-Item -LiteralPath $Src -Destination $Dst -Force
+      }
     }
     Write-Host "Updated $Entry."
     $script:Updated++

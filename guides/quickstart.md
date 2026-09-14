@@ -21,6 +21,10 @@ For other tools, copy the same file to the matching folder: `.claude/skills/...`
 Add optional roles with `--extra planner,oracle,designer` (any subset).
 Windows: `setup.ps1` mirrors these flags.
 
+Existing `AGENTS.md` files are never overwritten: installs merge the template
+into a `<!-- agents-teamwork:begin/end -->` block, preserving your content.
+Re-running install or `generate.py` only refreshes that block in place.
+
 ## 3. Verify
 
 ```sh
