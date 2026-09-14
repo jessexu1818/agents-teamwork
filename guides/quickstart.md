@@ -24,6 +24,9 @@ Windows: `setup.ps1` mirrors these flags.
 Existing `AGENTS.md` files are never overwritten: installs merge the template
 into a `<!-- agents-teamwork:begin/end -->` block, preserving your content.
 Re-running install or `generate.py` only refreshes that block in place.
+Existing `.codex/config.toml` files are TOML-merged (only `model` and
+`agents.default_subagent_model` managed): your `[mcp]` sections and custom
+values are kept, missing keys are added, and re-runs are byte-identical.
 
 ## 3. Verify
 

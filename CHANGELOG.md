@@ -24,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `AGENTS.md` installs now merge via a `<!-- agents-teamwork:begin/end -->`
   marker block instead of overwriting; existing user content is preserved.
+- `.codex/config.toml` installs now TOML-merge (`model` +
+  `agents.default_subagent_model`) instead of overwriting; `[mcp]` and other
+  user sections are preserved, conflicts keep user values with a warning.
+  Generated writes skip when byte-identical (no mtime churn).
 
 ## [0.1.0] - 2026-09-11
 

@@ -8,7 +8,9 @@ Presets (documented for --help):
   custom: all=gpt-5-mini including reviewer, reviewer-effort=low (override via flags)
 """
 import argparse
+import re
 import sys
+import tomllib
 from pathlib import Path
 
 ALL_TOOLS = ["claude", "codex", "codebuddy", "kiro", "opencode", "cursor", "agents",
@@ -30,6 +32,196 @@ TEMPLATE_ROOT = Path(__file__).resolve().parent.parent / "templates"
 
 AGENTS_BEGIN = "<!-- agents-teamwork:begin -->"
 AGENTS_END = "<!-- agents-teamwork:end -->"
+
+TOML_BEGIN = "# agents-teamwork:begin"
+TOML_END = "# agents-teamwork:end"
+
+
+def write_if_changed(path, text):
+    """Write text to path only when bytes differ (avoids mtime churn).
+
+    Creates parent dirs. Returns True when the file was written,
+    False when the existing content was already byte-identical.
+    """
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    new_bytes = text.encode("utf-8")
+    if p.is_file():
+        try:
+            if p.read_bytes() == new_bytes:
+                return False
+        except OSError:
+            pass
+    p.write_text(text, encoding="utf-8")
+    return True
+
+
+def fresh_config_toml(orchestrator, worker):
+    """Fresh .codex/config.toml content (valid standalone TOML with markers)."""
+    return (f"{TOML_BEGIN}\nmodel = {toml_str(orchestrator)}\n"
+            f"[agents]\ndefault_subagent_model = {toml_str(worker)}\n{TOML_END}\n")
+
+
+def merge_config_toml(existing, orchestrator, worker):
+    """TOML-aware merge for .codex/config.toml (line-based surgery only).
+
+    Managed keys (only these two): root `model` and
+    `agents.default_subagent_model`. User content is never reformatted;
+    tomllib is used for parsing/detection only, insertions are line-based.
+
+    Marker rule: markers only wrap appended multi-line blocks. Single-line
+    insertions are unmarked: a later run sees the key present with our value
+    -> equals generated -> unchanged (silent); if the user edited it after
+    -> conflict -> keep + warn. That lets future runs recognize our values
+    without marker comments on every line.
+
+    Returns (new_text, status, warning) where status is one of
+    written|unchanged|merged|kept-user-values|left-untouched and warning
+    is None or a human-readable string listing kept/conflicting keys.
+    """
+    fresh_block = fresh_config_toml(orchestrator, worker)
+    if existing is None or existing.strip() == "":
+        return (fresh_block, "written", None)
+    bi = existing.find(TOML_BEGIN)
+    if bi != -1:
+        ei = existing.find(TOML_END, bi + len(TOML_BEGIN))
+        if ei != -1:
+            # Marked block: update managed values in place (shape-preserving).
+            # Blind full-block replacement would corrupt appended agents-only
+            # blocks (model would land inside [mcp] on the next run).
+            try:
+                mdata = tomllib.loads(existing)
+            except Exception:
+                return (existing, "left-untouched",
+                        "left-untouched: existing config.toml is not valid TOML; leaving unchanged")
+            if not isinstance(mdata, dict):
+                return (existing, "left-untouched",
+                        "left-untouched: existing config.toml is not valid TOML; leaving unchanged")
+            before = existing[:bi]
+            block = existing[bi:ei + len(TOML_END)]
+            after = existing[ei + len(TOML_END):]
+            has_model_in_block = bool(re.search(r"^[ \t]*model[ \t]*=", block, re.M))
+            has_agents_in_block = bool(re.search(r"^[ \t]*default_subagent_model[ \t]*=", block, re.M))
+            new_block_lines = []
+            for line in block.splitlines():
+                if re.match(r"^[ \t]*model[ \t]*=", line):
+                    new_block_lines.append(f"model = {toml_str(orchestrator)}")
+                elif re.match(r"^[ \t]*default_subagent_model[ \t]*=", line):
+                    new_block_lines.append(f"default_subagent_model = {toml_str(worker)}")
+                else:
+                    new_block_lines.append(line)
+            new_block = "\n".join(new_block_lines)
+            merged1 = before + new_block + after
+            if merged1 != existing:
+                try:
+                    tomllib.loads(merged1)
+                except Exception:
+                    return (existing, "left-untouched",
+                            "left-untouched: existing config.toml is not valid TOML; leaving unchanged")
+                # Warn only about outside (user-owned) keys we did not touch.
+                try:
+                    pdata = tomllib.loads(merged1)
+                except Exception:
+                    pdata = {}
+                outside_conflicts = []
+                if not has_model_in_block and isinstance(pdata, dict) and "model" in pdata:
+                    if pdata.get("model") != orchestrator:
+                        outside_conflicts.append("model")
+                av = pdata.get("agents") if isinstance(pdata, dict) else None
+                if not has_agents_in_block and isinstance(av, dict) and "default_subagent_model" in av:
+                    if av.get("default_subagent_model") != worker:
+                        outside_conflicts.append("agents.default_subagent_model")
+                warn = (f"kept-user-values: keeping existing {', '.join(outside_conflicts)}"
+                        if outside_conflicts else None)
+                return (merged1, "merged", warn)
+            # In-block values already correct: fall through to missing/conflict
+            # handling for keys living outside the block (user-owned).
+            has_root = "model" in mdata
+            agents_val = mdata.get("agents")
+            has_agents_key = isinstance(agents_val, dict) and "default_subagent_model" in agents_val
+            if not has_root or not has_agents_key:
+                # Reuse insertion logic below on the (unchanged) file.
+                existing = merged1
+                data = mdata
+            else:
+                outside_conflicts = []
+                if not has_model_in_block and mdata.get("model") != orchestrator:
+                    outside_conflicts.append("model")
+                if not has_agents_in_block and isinstance(agents_val, dict):
+                    if agents_val.get("default_subagent_model") != worker:
+                        outside_conflicts.append("agents.default_subagent_model")
+                if outside_conflicts:
+                    return (existing, "kept-user-values",
+                            f"kept-user-values: keeping existing {', '.join(outside_conflicts)}")
+                return (existing, "unchanged", None)
+    try:
+        data = tomllib.loads(existing)
+    except Exception:
+        return (existing, "left-untouched",
+                "left-untouched: existing config.toml is not valid TOML; leaving unchanged")
+    if not isinstance(data, dict):
+        return (existing, "left-untouched",
+                "left-untouched: existing config.toml is not valid TOML; leaving unchanged")
+    has_root = "model" in data
+    agents_val = data.get("agents")
+    has_agents_key = isinstance(agents_val, dict) and "default_subagent_model" in agents_val
+    cur_root = data.get("model") if has_root else None
+    cur_agents = agents_val.get("default_subagent_model") if has_agents_key else None
+    missing_root = not has_root
+    missing_agents = not has_agents_key
+    if not missing_root and not missing_agents:
+        if cur_root == orchestrator and cur_agents == worker:
+            return (existing, "unchanged", None)
+        conflicts = []
+        if cur_root != orchestrator:
+            conflicts.append("model")
+        if cur_agents != worker:
+            conflicts.append("agents.default_subagent_model")
+        return (existing, "kept-user-values",
+                f"kept-user-values: keeping existing {', '.join(conflicts)}")
+    conflicts = []
+    if has_root and cur_root != orchestrator:
+        conflicts.append("model")
+    if has_agents_key and cur_agents != worker:
+        conflicts.append("agents.default_subagent_model")
+
+    def _is_table_header(line):
+        return line.strip().startswith("[")
+
+    def _is_agents_header(line):
+        return re.match(r"^\s*\[agents\]\s*(#.*)?$", line) is not None
+
+    lines = existing.splitlines()
+    if missing_root:
+        idx = None
+        for i, ln in enumerate(lines):
+            if _is_table_header(ln):
+                idx = i
+                break
+        new_line = f"model = {toml_str(orchestrator)}"
+        if idx is None:
+            lines.append(new_line)
+        else:
+            lines.insert(idx, new_line)
+    if missing_agents:
+        agents_idx = None
+        for i, ln in enumerate(lines):
+            if _is_agents_header(ln):
+                agents_idx = i
+                break
+        new_key = f"default_subagent_model = {toml_str(worker)}"
+        if agents_idx is not None:
+            lines.insert(agents_idx + 1, new_key)
+        else:
+            lines.append(TOML_BEGIN)
+            lines.append("[agents]")
+            lines.append(new_key)
+            lines.append(TOML_END)
+    new_text = "\n".join(lines) + "\n"
+    warn = None
+    if conflicts:
+        warn = f"kept-user-values: keeping existing {', '.join(conflicts)}"
+    return (new_text, "merged", warn)
 
 
 def merge_agents_md(existing: str | None, template: str) -> str:
@@ -70,6 +262,7 @@ def parse_args(argv=None):
     p.add_argument("--components", default="all", choices=["all", "skills-only"])
     p.add_argument("--target", required=False, default=None, help="output directory")
     p.add_argument("--merge-agents-md", default=None, help="merge AGENTS.md block into FILE and exit")
+    p.add_argument("--merge-config-toml", default=None, help="merge .codex/config.toml keys into FILE and exit")
     p.add_argument("--agents-template", default=None, help="template file for --merge-agents-md (default templates/AGENTS.md)")
     p.add_argument("--preset", default="pro", choices=["pro", "plus", "custom"])
     for r in ["orchestrator", "explorer", "worker", "tester", "reviewer",
@@ -77,7 +270,7 @@ def parse_args(argv=None):
         p.add_argument(f"--{r}-model", default=None, help=f"override {r} model")
     p.add_argument("--reviewer-effort", default=None, help="override reviewer effort")
     args = p.parse_args(argv)
-    if args.merge_agents_md is None and not args.target:
+    if args.merge_agents_md is None and args.merge_config_toml is None and not args.target:
         p.error("the following arguments are required: --target")
     return args
 
@@ -211,6 +404,26 @@ def main(argv=None):
             dest.write_text(merged_text)
             print("merged")
         return
+    if args.merge_config_toml is not None:
+        models = build_models(args.preset, args)
+        dest = Path(args.merge_config_toml)
+        if not dest.exists():
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            text, status, warn = merge_config_toml(None, models["orchestrator"], models["worker"])
+            dest.write_text(text, encoding="utf-8")
+            print(status)
+            if warn:
+                print(warn, file=sys.stderr)
+            return
+        existing_text = dest.read_text(encoding="utf-8")
+        new_text, status, warn = merge_config_toml(
+            existing_text, models["orchestrator"], models["worker"])
+        if new_text != existing_text:
+            dest.write_text(new_text, encoding="utf-8")
+        print(status)
+        if warn:
+            print(warn, file=sys.stderr)
+        return
     tools = list(dict.fromkeys(resolve_tools(args.tools)))
     if not tools:
         parser = argparse.ArgumentParser()
@@ -228,8 +441,7 @@ def main(argv=None):
     for tool in tools:
         if tool == "codex":
             skill_path = target / ".agents" / "skills" / "team-orchestrator" / "SKILL.md"
-            skill_path.parent.mkdir(parents=True, exist_ok=True)
-            skill_path.write_text(skill_text)
+            write_if_changed(skill_path, skill_text)
             n_skills += 1
             if args.components == "all":
                 adir = target / ".codex" / "agents"
@@ -237,27 +449,27 @@ def main(argv=None):
                 for role in roles:
                     src = (TEMPLATE_ROOT / "roles" / f"{role}.md").read_text()
                     meta, body = parse_frontmatter(substitute(src, models))
-                    (adir / f"{role}.toml").write_text(role_to_toml(meta, body))
+                    write_if_changed(adir / f"{role}.toml", role_to_toml(meta, body))
                     n_roles += 1
-                cfg = (f"model = {toml_str(models['orchestrator'])}\n"
-                       f"[agents]\ndefault_subagent_model = {toml_str(models['worker'])}\n")
-                (target / ".codex" / "config.toml").write_text(cfg)
+                cfg_path = target / ".codex" / "config.toml"
+                existing_cfg = cfg_path.read_text(encoding="utf-8") if cfg_path.is_file() else None
+                merged_cfg, _, _ = merge_config_toml(
+                    existing_cfg, models["orchestrator"], models["worker"])
+                write_if_changed(cfg_path, merged_cfg)
         elif tool == "antigravity":
             skill_path = target / ".agents" / "skills" / "team-orchestrator" / "SKILL.md"
-            skill_path.parent.mkdir(parents=True, exist_ok=True)
-            skill_path.write_text(skill_text)
+            write_if_changed(skill_path, skill_text)
             n_skills += 1
             if args.components == "all":
                 adir = target / ".agent" / "agents"
                 adir.mkdir(parents=True, exist_ok=True)
                 for role in roles:
                     src = (TEMPLATE_ROOT / "roles" / f"{role}.md").read_text()
-                    (adir / f"{role}.md").write_text(substitute(src, models))
+                    write_if_changed(adir / f"{role}.md", substitute(src, models))
                     n_roles += 1
         elif tool == "copilot":
             skill_path = target / ".github" / "skills" / "team-orchestrator" / "SKILL.md"
-            skill_path.parent.mkdir(parents=True, exist_ok=True)
-            skill_path.write_text(skill_text)
+            write_if_changed(skill_path, skill_text)
             n_skills += 1
             if args.components == "all":
                 adir = target / ".github" / "agents"
@@ -265,12 +477,11 @@ def main(argv=None):
                 for role in roles:
                     src = (TEMPLATE_ROOT / "roles" / f"{role}.md").read_text()
                     meta, body = parse_frontmatter(substitute(src, models))
-                    (adir / f"{role}.agent.md").write_text(role_to_copilot_agent(meta, body))
+                    write_if_changed(adir / f"{role}.agent.md", role_to_copilot_agent(meta, body))
                     n_roles += 1
         elif tool == "windsurf":
             skill_path = target / ".windsurf" / "skills" / "team-orchestrator" / "SKILL.md"
-            skill_path.parent.mkdir(parents=True, exist_ok=True)
-            skill_path.write_text(skill_text)
+            write_if_changed(skill_path, skill_text)
             n_skills += 1
             if args.components == "all":
                 adir = target / ".windsurf" / "rules"
@@ -278,12 +489,11 @@ def main(argv=None):
                 for role in roles:
                     src = (TEMPLATE_ROOT / "roles" / f"{role}.md").read_text()
                     meta, body = parse_frontmatter(substitute(src, models))
-                    (adir / f"{role}.md").write_text(role_to_windsurf_rule(meta, body))
+                    write_if_changed(adir / f"{role}.md", role_to_windsurf_rule(meta, body))
                     n_roles += 1
         elif tool == "qoder":
             skill_path = target / ".qoder" / "skills" / "team-orchestrator" / "SKILL.md"
-            skill_path.parent.mkdir(parents=True, exist_ok=True)
-            skill_path.write_text(skill_text)
+            write_if_changed(skill_path, skill_text)
             n_skills += 1
             if args.components == "all":
                 adir = target / ".qoder" / "agents"
@@ -291,31 +501,29 @@ def main(argv=None):
                 for role in roles:
                     src = (TEMPLATE_ROOT / "roles" / f"{role}.md").read_text()
                     meta, body = parse_frontmatter(substitute(src, models))
-                    (adir / f"{role}.md").write_text(role_to_qoder_agent(meta, body))
+                    write_if_changed(adir / f"{role}.md", role_to_qoder_agent(meta, body))
                     n_roles += 1
         elif tool == "trae":
             skill_path = target / ".trae" / "skills" / "team-orchestrator" / "SKILL.md"
-            skill_path.parent.mkdir(parents=True, exist_ok=True)
-            skill_path.write_text(skill_text)
+            write_if_changed(skill_path, skill_text)
             n_skills += 1
             if args.components == "all":
                 adir = target / ".trae" / "rules"
                 adir.mkdir(parents=True, exist_ok=True)
                 for role in roles:
                     src = (TEMPLATE_ROOT / "roles" / f"{role}.md").read_text()
-                    (adir / f"{role}.md").write_text(substitute(src, models))
+                    write_if_changed(adir / f"{role}.md", substitute(src, models))
                     n_roles += 1
         else:
             skill_path = target / f".{tool}" / "skills" / "team-orchestrator" / "SKILL.md"
-            skill_path.parent.mkdir(parents=True, exist_ok=True)
-            skill_path.write_text(skill_text)
+            write_if_changed(skill_path, skill_text)
             n_skills += 1
             if args.components == "all":
                 adir = target / f".{tool}" / "agents"
                 adir.mkdir(parents=True, exist_ok=True)
                 for role in roles:
                     src = (TEMPLATE_ROOT / "roles" / f"{role}.md").read_text()
-                    (adir / f"{role}.md").write_text(substitute(src, models))
+                    write_if_changed(adir / f"{role}.md", substitute(src, models))
                     n_roles += 1
 
     if args.components == "all":
@@ -323,7 +531,7 @@ def main(argv=None):
         agents_path = target / "AGENTS.md"
         template_text = (TEMPLATE_ROOT / "AGENTS.md").read_text()
         existing_text = agents_path.read_text() if agents_path.is_file() else None
-        agents_path.write_text(merge_agents_md(existing_text, template_text))
+        write_if_changed(agents_path, merge_agents_md(existing_text, template_text))
 
     print(f"Generated {n_roles} roles + {n_skills} skills for [{','.join(tools)}] "
           f"to {target} (preset={args.preset}, components={args.components})")

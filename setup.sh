@@ -276,6 +276,46 @@ install_entry() {
       rm "$live_path"
       cp -R "$staged_path" "$live_path"
     elif [ -d "$staged_path" ] && [ -d "$live_path" ]; then
+      if [ "$entry_name" = ".codex" ] && [ -f "$staged_path/config.toml" ]; then
+        for child in "$staged_path"/*; do
+          if [ ! -e "$child" ] && [ ! -L "$child" ]; then
+            continue
+          fi
+          cname=$(basename "$child")
+          if [ "$cname" = "config.toml" ]; then
+            continue
+          fi
+          cp -R "$child" "$live_path"/
+        done
+        for child in "$staged_path"/.*; do
+          if [ ! -e "$child" ] && [ ! -L "$child" ]; then
+            continue
+          fi
+          cname=$(basename "$child")
+          case "$cname" in
+            .|..) continue ;;
+            config.toml) continue ;;
+          esac
+          cp -R "$child" "$live_path"/
+        done
+        set -- python3 "$SCRIPT_DIR/scripts/generate.py" \
+          --merge-config-toml "$live_path/config.toml" \
+          --preset "$PRESET"
+        if [ -n "$ORCHESTRATOR_MODEL" ]; then set -- "$@" --orchestrator-model "$ORCHESTRATOR_MODEL"; fi
+        if [ -n "$EXPLORER_MODEL" ]; then set -- "$@" --explorer-model "$EXPLORER_MODEL"; fi
+        if [ -n "$WORKER_MODEL" ]; then set -- "$@" --worker-model "$WORKER_MODEL"; fi
+        if [ -n "$TESTER_MODEL" ]; then set -- "$@" --tester-model "$TESTER_MODEL"; fi
+        if [ -n "$REVIEWER_MODEL" ]; then set -- "$@" --reviewer-model "$REVIEWER_MODEL"; fi
+        if [ -n "$RESEARCHER_MODEL" ]; then set -- "$@" --researcher-model "$RESEARCHER_MODEL"; fi
+        if [ -n "$PLANNER_MODEL" ]; then set -- "$@" --planner-model "$PLANNER_MODEL"; fi
+        if [ -n "$ORACLE_MODEL" ]; then set -- "$@" --oracle-model "$ORACLE_MODEL"; fi
+        if [ -n "$DESIGNER_MODEL" ]; then set -- "$@" --designer-model "$DESIGNER_MODEL"; fi
+        if [ -n "$REVIEWER_EFFORT" ]; then set -- "$@" --reviewer-effort "$REVIEWER_EFFORT"; fi
+        "$@"
+        printf 'Merged %s.\n' "$entry_name"
+        N_UPDATED=$((N_UPDATED + 1))
+        return 0
+      fi
       cp -R "$staged_path"/. "$live_path"/
     elif [ -f "$staged_path" ] && { [ -f "$live_path" ] || [ ! -e "$live_path" ]; }; then
       if [ "$entry_name" = "AGENTS.md" ] && [ -f "$live_path" ] && [ ! -L "$live_path" ]; then

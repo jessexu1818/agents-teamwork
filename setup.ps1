@@ -169,6 +169,36 @@ function Install-Entry([string]$Entry, [string]$Src, [string]$Dst) {
       Remove-Item -LiteralPath $Dst -Force
       Copy-Item -LiteralPath $Src -Destination $Dst -Recurse -Force
     } elseif ($srcIsDir -and $dstIsDir) {
+      if (($Entry -eq ".codex") -and (Test-Path -LiteralPath (Join-Path $Src "config.toml") -PathType Leaf)) {
+        $children = Get-ChildItem -LiteralPath $Src -Force
+        foreach ($child in $children) {
+          if ($child.Name -eq "config.toml") { continue }
+          Copy-Item -LiteralPath $child.FullName -Destination (Join-Path $Dst $child.Name) -Recurse -Force
+        }
+        $pyExe = $null
+        $c = Get-Command python3 -ErrorAction SilentlyContinue
+        if ($null -eq $c) { $c = Get-Command python -ErrorAction SilentlyContinue }
+        if ($null -ne $c) { $pyExe = $c.Source }
+        if (-not $pyExe) {
+          Fail "python3 (or python) is required to merge .codex/config.toml without overwriting user content"
+        }
+        $mergeArgs = @((Join-Path $ScriptDir "scripts/generate.py"), "--merge-config-toml", (Join-Path $Dst "config.toml"), "--preset", $Preset)
+        if (-not [string]::IsNullOrWhiteSpace($OrchestratorModel)) { $mergeArgs += @("--orchestrator-model", $OrchestratorModel) }
+        if (-not [string]::IsNullOrWhiteSpace($ExplorerModel)) { $mergeArgs += @("--explorer-model", $ExplorerModel) }
+        if (-not [string]::IsNullOrWhiteSpace($WorkerModel)) { $mergeArgs += @("--worker-model", $WorkerModel) }
+        if (-not [string]::IsNullOrWhiteSpace($TesterModel)) { $mergeArgs += @("--tester-model", $TesterModel) }
+        if (-not [string]::IsNullOrWhiteSpace($ReviewerModel)) { $mergeArgs += @("--reviewer-model", $ReviewerModel) }
+        if (-not [string]::IsNullOrWhiteSpace($ResearcherModel)) { $mergeArgs += @("--researcher-model", $ResearcherModel) }
+        if (-not [string]::IsNullOrWhiteSpace($PlannerModel)) { $mergeArgs += @("--planner-model", $PlannerModel) }
+        if (-not [string]::IsNullOrWhiteSpace($OracleModel)) { $mergeArgs += @("--oracle-model", $OracleModel) }
+        if (-not [string]::IsNullOrWhiteSpace($DesignerModel)) { $mergeArgs += @("--designer-model", $DesignerModel) }
+        if (-not [string]::IsNullOrWhiteSpace($ReviewerEffort)) { $mergeArgs += @("--reviewer-effort", $ReviewerEffort) }
+        & $pyExe @mergeArgs
+        if ($LASTEXITCODE -ne 0) { Fail ".codex/config.toml merge failed with exit code $LASTEXITCODE" }
+        Write-Host "Merged $Entry."
+        $script:Updated++
+        return
+      }
       $children = Get-ChildItem -LiteralPath $Src -Force
       foreach ($child in $children) {
         Copy-Item -LiteralPath $child.FullName -Destination (Join-Path $Dst $child.Name) -Recurse -Force
