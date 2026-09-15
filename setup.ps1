@@ -125,6 +125,33 @@ function Ask-Choice([string]$Prompt, [bool]$DefaultYes) {
   }
 }
 
+function Get-PythonExe() {
+  $c = Get-Command python3 -ErrorAction SilentlyContinue
+  if ($null -eq $c) { $c = Get-Command python -ErrorAction SilentlyContinue }
+  if ($null -eq $c) { return $null }
+  return $c.Source
+}
+
+function Sync-StagedFile([string]$StagedFile, [string]$LiveFile, [string]$Rel, [string]$PyExe) {
+  if (-not (Test-Path -LiteralPath $LiveFile)) {
+    $parent = Split-Path -Parent $LiveFile
+    if ($parent -and (-not (Test-Path -LiteralPath $parent))) { New-Item -ItemType Directory -Path $parent -Force | Out-Null }
+    Copy-Item -LiteralPath $StagedFile -Destination $LiveFile -Force
+    return "written"
+  }
+  $sh = (Get-FileHash -LiteralPath $StagedFile -Algorithm SHA256).Hash
+  $lh = (Get-FileHash -LiteralPath $LiveFile -Algorithm SHA256).Hash
+  if ($sh -eq $lh) { return "unchanged" }
+  $st = & $PyExe (Join-Path $ScriptDir "scripts/generate.py") --sync-file "$StagedFile" "$LiveFile"
+  if ($LASTEXITCODE -ne 0) { Fail "sync failed for $Rel with exit code $LASTEXITCODE" }
+  $status = (($st | Out-String).Trim().Split() | Where-Object { $_ -ne "" } | Select-Object -Last 1)
+  if ($status -eq "kept") {
+    Write-Host "kept user file: $Rel"
+    $script:Kept++
+  }
+  return $status
+}
+
 function Install-Entry([string]$Entry, [string]$Src, [string]$Dst) {
   if (-not (Test-Path -LiteralPath $Src)) { Fail "staged source is missing: $Src" }
   $srcIsDir = Test-Path -LiteralPath $Src -PathType Container
@@ -170,17 +197,19 @@ function Install-Entry([string]$Entry, [string]$Src, [string]$Dst) {
       Copy-Item -LiteralPath $Src -Destination $Dst -Recurse -Force
     } elseif ($srcIsDir -and $dstIsDir) {
       if (($Entry -eq ".codex") -and (Test-Path -LiteralPath (Join-Path $Src "config.toml") -PathType Leaf)) {
-        $children = Get-ChildItem -LiteralPath $Src -Force
-        foreach ($child in $children) {
-          if ($child.Name -eq "config.toml") { continue }
-          Copy-Item -LiteralPath $child.FullName -Destination (Join-Path $Dst $child.Name) -Recurse -Force
-        }
-        $pyExe = $null
-        $c = Get-Command python3 -ErrorAction SilentlyContinue
-        if ($null -eq $c) { $c = Get-Command python -ErrorAction SilentlyContinue }
-        if ($null -ne $c) { $pyExe = $c.Source }
+        $pyExe = Get-PythonExe
         if (-not $pyExe) {
           Fail "python3 (or python) is required to merge .codex/config.toml without overwriting user content"
+        }
+        $entryDirty = $false
+        $stagedFiles = Get-ChildItem -LiteralPath $Src -Recurse -Force -File -ErrorAction Stop
+        foreach ($sf in $stagedFiles) {
+          $rel = $sf.FullName.Substring($Src.Length).TrimStart('\', '/')
+          if ($rel -eq "config.toml") { continue }
+          $live = Join-Path $Dst $rel
+          $relDisp = ("$Entry/$rel" -replace '\\', '/')
+          $s = Sync-StagedFile $sf.FullName $live $relDisp $pyExe
+          if ($s -eq "written" -or $s -eq "updated") { $entryDirty = $true }
         }
         $mergeArgs = @((Join-Path $ScriptDir "scripts/generate.py"), "--merge-config-toml", (Join-Path $Dst "config.toml"), "--preset", $Preset)
         if (-not [string]::IsNullOrWhiteSpace($OrchestratorModel)) { $mergeArgs += @("--orchestrator-model", $OrchestratorModel) }
@@ -196,13 +225,38 @@ function Install-Entry([string]$Entry, [string]$Src, [string]$Dst) {
         $mergeStatus = & $pyExe @mergeArgs
         if ($LASTEXITCODE -ne 0) { Fail ".codex/config.toml merge failed with exit code $LASTEXITCODE" }
         Write-Host ".codex/config.toml: $mergeStatus"
-        $script:Updated++
+        $m = (($mergeStatus | Out-String).Trim().Split() | Where-Object { $_ -ne "" } | Select-Object -Last 1)
+        if ($m -eq "merged" -or $m -eq "written") { $entryDirty = $true }
+        if ($entryDirty) {
+          Write-Host "Updated $Entry."
+          $script:Updated++
+        } else {
+          Write-Host "Up to date $Entry (unchanged, kept user files preserved)."
+          $script:Skipped++
+        }
         return
       }
-      $children = Get-ChildItem -LiteralPath $Src -Force
-      foreach ($child in $children) {
-        Copy-Item -LiteralPath $child.FullName -Destination (Join-Path $Dst $child.Name) -Recurse -Force
+      $pyExe2 = Get-PythonExe
+      if (-not $pyExe2) {
+        Fail "python3 (or python) is required to sync files without overwriting user content"
       }
+      $entryDirty2 = $false
+      $stagedFiles2 = Get-ChildItem -LiteralPath $Src -Recurse -Force -File -ErrorAction Stop
+      foreach ($sf in $stagedFiles2) {
+        $rel2 = $sf.FullName.Substring($Src.Length).TrimStart('\', '/')
+        $live2 = Join-Path $Dst $rel2
+        $relDisp2 = ("$Entry/$rel2" -replace '\\', '/')
+        $s2 = Sync-StagedFile $sf.FullName $live2 $relDisp2 $pyExe2
+        if ($s2 -eq "written" -or $s2 -eq "updated") { $entryDirty2 = $true }
+      }
+      if ($entryDirty2) {
+        Write-Host "Updated $Entry."
+        $script:Updated++
+      } else {
+        Write-Host "Up to date $Entry (unchanged, kept user files preserved)."
+        $script:Skipped++
+      }
+      return
     } else {
       if (($Entry -eq "AGENTS.md") -and (-not $srcIsDir) -and (Test-Path -LiteralPath $Dst -PathType Leaf) -and (-not $dstIsLink)) {
         $pyExe = $null
@@ -213,7 +267,8 @@ function Install-Entry([string]$Entry, [string]$Src, [string]$Dst) {
           $agentsStatus = & $pyExe (Join-Path $ScriptDir "scripts/generate.py") --merge-agents-md "$Dst" --agents-template (Join-Path $ScriptDir "templates/AGENTS.md")
           if ($LASTEXITCODE -ne 0) { Fail "AGENTS.md merge failed with exit code $LASTEXITCODE" }
           Write-Host "AGENTS.md: $agentsStatus"
-          $script:Updated++
+          $m2 = (($agentsStatus | Out-String).Trim().Split() | Where-Object { $_ -ne "" } | Select-Object -Last 1)
+          if ($m2 -eq "unchanged") { $script:Skipped++ } else { $script:Updated++ }
           return
         }
         Fail "python3 (or python) is required to merge AGENTS.md without overwriting user content"
@@ -280,6 +335,7 @@ try {
   $script:NewCount = 0
   $script:Updated = 0
   $script:Skipped = 0
+  $script:Kept = 0
 
   $tops = Get-ChildItem -LiteralPath $stageDir -Force
   foreach ($top in $tops) {
@@ -287,7 +343,7 @@ try {
   }
 
   Write-Host ""
-  Write-Host "Setup complete: $script:NewCount new, $script:Updated updated, $script:Skipped skipped in $TargetDir."
+  Write-Host "Setup complete: $script:NewCount new, $script:Updated updated, $script:Skipped skipped, $script:Kept kept in $TargetDir."
   Write-Host "Options: tools=$Tools components=$Components preset=$Preset"
   if ($Components -eq "skills-only") {
     Write-Host "Next: skills installed only. Verify a SKILL.md under each tool dir, then re-run with -Components all to add agent roles and AGENTS.md."

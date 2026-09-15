@@ -27,6 +27,9 @@ Re-running install or `generate.py` only refreshes that block in place.
 Existing `.codex/config.toml` files are TOML-merged (only `model` and
 `agents.default_subagent_model` managed): your `[mcp]` sections and custom
 values are kept, missing keys are added, and re-runs are byte-identical.
+Generated role/agent/rule/skill files carry an ownership marker (`<!-- agents-teamwork: managed file ... -->`, `# ...` for TOML).
+Reinstalls overwrite only owned files; custom files without the marker are kept byte-identical with a `kept user file:` notice.
+Remove the marker to claim a file, or delete it to restore the generated default on next install.
 
 ## 3. Verify
 

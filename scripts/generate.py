@@ -36,6 +36,111 @@ AGENTS_END = "<!-- agents-teamwork:end -->"
 TOML_BEGIN = "# agents-teamwork:begin"
 TOML_END = "# agents-teamwork:end"
 
+MD_OWNERSHIP = "<!-- agents-teamwork: managed file - safe to overwrite on reinstall -->"
+TOML_OWNERSHIP = "# agents-teamwork: managed file - safe to overwrite on reinstall"
+
+
+def add_md_ownership(text):
+    """Insert ownership marker as first body line after frontmatter.
+
+    If frontmatter (--- ... ---) exists, marker goes right after it.
+    Otherwise marker is the first line. Idempotent (no double insert).
+    """
+    if MD_OWNERSHIP in text:
+        return text
+    lines = text.splitlines()
+    if lines and lines[0].strip() == "---":
+        for i in range(1, len(lines)):
+            if lines[i].strip() == "---":
+                front = lines[:i + 1]
+                rest = lines[i + 1:]
+                j = 0
+                while j < len(rest) and rest[j].strip() == "":
+                    j += 1
+                new_lines = front + [MD_OWNERSHIP] + rest[j:]
+                new_text = "\n".join(new_lines)
+                if text.endswith("\n"):
+                    new_text += "\n"
+                return new_text
+    stripped = text.lstrip("\n")
+    new_text = MD_OWNERSHIP + "\n" + stripped
+    if text.endswith("\n") and not new_text.endswith("\n"):
+        new_text += "\n"
+    return new_text
+
+
+def add_toml_ownership(text):
+    """Prepend TOML ownership marker as first line. Idempotent."""
+    if TOML_OWNERSHIP in text:
+        return text
+    return TOML_OWNERSHIP + "\n" + text.lstrip("\n")
+
+
+def _strip_ownership_lines(text):
+    out = []
+    for line in text.splitlines():
+        s = line.strip()
+        if s == MD_OWNERSHIP or s == TOML_OWNERSHIP:
+            continue
+        out.append(line)
+    return "\n".join(out)
+
+
+def is_ours(path, generated_text):
+    """True if existing file is owned by us (safe to overwrite).
+
+    Owned when existing content contains an ownership marker, OR when
+    existing equals generated with marker lines stripped from both
+    (legacy v0.1.0 unmarked installs -> adopt).
+    """
+    p = Path(path)
+    try:
+        existing = p.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        if not p.exists():
+            return True
+        return False
+    if MD_OWNERSHIP in existing or TOML_OWNERSHIP in existing:
+        return True
+    try:
+        gen_str = generated_text if isinstance(generated_text, str) else generated_text.decode("utf-8")
+    except Exception:
+        return False
+    return _strip_ownership_lines(existing) == _strip_ownership_lines(gen_str)
+
+
+def sync_file(path, new_text):
+    """Ownership-aware write.
+
+    Returns status: written (missing -> write), unchanged (byte-identical),
+    updated (ours but stale -> overwrite), kept (foreign -> leave byte-identical).
+    """
+    p = Path(path)
+    if p.is_symlink():
+        return "kept"
+    if p.is_dir():
+        return "kept"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    new_bytes = new_text.encode("utf-8")
+    if p.is_file():
+        try:
+            existing_bytes = p.read_bytes()
+        except OSError:
+            p.write_bytes(new_bytes)
+            return "written"
+        if existing_bytes == new_bytes:
+            return "unchanged"
+        try:
+            existing_bytes.decode("utf-8")
+        except UnicodeDecodeError:
+            return "kept"
+        if is_ours(p, new_text):
+            p.write_bytes(new_bytes)
+            return "updated"
+        return "kept"
+    p.write_bytes(new_bytes)
+    return "written"
+
 
 def write_if_changed(path, text):
     """Write text to path only when bytes differ (avoids mtime churn).
@@ -275,6 +380,8 @@ def parse_args(argv=None):
     p.add_argument("--target", required=False, default=None, help="output directory")
     p.add_argument("--merge-agents-md", default=None, help="merge AGENTS.md block into FILE and exit")
     p.add_argument("--merge-config-toml", default=None, help="merge .codex/config.toml keys into FILE and exit")
+    p.add_argument("--sync-file", nargs=2, metavar=("SRC", "DST"), default=None,
+                   help="ownership-aware sync staged SRC to live DST and exit (prints status)")
     p.add_argument("--agents-template", default=None, help="template file for --merge-agents-md (default templates/AGENTS.md)")
     p.add_argument("--preset", default="pro", choices=["pro", "plus", "custom"])
     for r in ["orchestrator", "explorer", "worker", "tester", "reviewer",
@@ -282,7 +389,7 @@ def parse_args(argv=None):
         p.add_argument(f"--{r}-model", default=None, help=f"override {r} model")
     p.add_argument("--reviewer-effort", default=None, help="override reviewer effort")
     args = p.parse_args(argv)
-    if args.merge_agents_md is None and args.merge_config_toml is None and not args.target:
+    if args.merge_agents_md is None and args.merge_config_toml is None and args.sync_file is None and not args.target:
         p.error("the following arguments are required: --target")
     return args
 
@@ -399,6 +506,20 @@ def role_to_qoder_agent(meta, body):
 
 def main(argv=None):
     args = parse_args(argv)
+    if args.sync_file is not None:
+        src_s, dst_s = args.sync_file
+        src_p = Path(src_s)
+        dst_p = Path(dst_s)
+        try:
+            staged_text = src_p.read_text(encoding="utf-8")
+        except OSError as e:
+            print(f"Error: staged source unreadable: {src_s}: {e}", file=sys.stderr)
+            return 1
+        status = sync_file(dst_p, staged_text)
+        print(status)
+        if status == "kept":
+            print(f"kept-user-file: {dst_s}", file=sys.stderr)
+        return 0
     if args.merge_agents_md is not None:
         tmpl_path = Path(args.agents_template) if args.agents_template else (TEMPLATE_ROOT / "AGENTS.md")
         template_text = tmpl_path.read_text()
@@ -447,22 +568,40 @@ def main(argv=None):
     target.mkdir(parents=True, exist_ok=True)
 
     skill_src = (TEMPLATE_ROOT / "skills" / "team-orchestrator" / "SKILL.md").read_text()
-    skill_text = substitute(skill_src, models)
-    n_roles = n_skills = 0
+    skill_text = add_md_ownership(substitute(skill_src, models))
+    n_roles = n_skills = n_kept = 0
+    kept_warnings = []
+
+    def _record(path, new_text):
+        nonlocal n_kept
+        status = sync_file(path, new_text)
+        if status == "kept":
+            n_kept += 1
+            try:
+                rel = Path(path).relative_to(target)
+            except ValueError:
+                rel = Path(path)
+            kept_warnings.append(f"kept-user-file: {rel}")
+            return (status, False)
+        if status in ("written", "updated"):
+            return (status, True)
+        return (status, False)
 
     for tool in tools:
         if tool == "codex":
             skill_path = target / ".agents" / "skills" / "team-orchestrator" / "SKILL.md"
-            write_if_changed(skill_path, skill_text)
-            n_skills += 1
+            _, counted = _record(skill_path, skill_text)
+            if counted:
+                n_skills += 1
             if args.components == "all":
                 adir = target / ".codex" / "agents"
                 adir.mkdir(parents=True, exist_ok=True)
                 for role in roles:
                     src = (TEMPLATE_ROOT / "roles" / f"{role}.md").read_text()
                     meta, body = parse_frontmatter(substitute(src, models))
-                    write_if_changed(adir / f"{role}.toml", role_to_toml(meta, body))
-                    n_roles += 1
+                    _, counted = _record(adir / f"{role}.toml", add_toml_ownership(role_to_toml(meta, body)))
+                    if counted:
+                        n_roles += 1
                 cfg_path = target / ".codex" / "config.toml"
                 existing_cfg = cfg_path.read_bytes().decode("utf-8") if cfg_path.is_file() else None
                 merged_cfg, _, warn = merge_config_toml(
@@ -472,73 +611,85 @@ def main(argv=None):
                 write_if_changed(cfg_path, merged_cfg)
         elif tool == "antigravity":
             skill_path = target / ".agents" / "skills" / "team-orchestrator" / "SKILL.md"
-            write_if_changed(skill_path, skill_text)
-            n_skills += 1
+            _, counted = _record(skill_path, skill_text)
+            if counted:
+                n_skills += 1
             if args.components == "all":
                 adir = target / ".agent" / "agents"
                 adir.mkdir(parents=True, exist_ok=True)
                 for role in roles:
                     src = (TEMPLATE_ROOT / "roles" / f"{role}.md").read_text()
-                    write_if_changed(adir / f"{role}.md", substitute(src, models))
-                    n_roles += 1
+                    _, counted = _record(adir / f"{role}.md", add_md_ownership(substitute(src, models)))
+                    if counted:
+                        n_roles += 1
         elif tool == "copilot":
             skill_path = target / ".github" / "skills" / "team-orchestrator" / "SKILL.md"
-            write_if_changed(skill_path, skill_text)
-            n_skills += 1
+            _, counted = _record(skill_path, skill_text)
+            if counted:
+                n_skills += 1
             if args.components == "all":
                 adir = target / ".github" / "agents"
                 adir.mkdir(parents=True, exist_ok=True)
                 for role in roles:
                     src = (TEMPLATE_ROOT / "roles" / f"{role}.md").read_text()
                     meta, body = parse_frontmatter(substitute(src, models))
-                    write_if_changed(adir / f"{role}.agent.md", role_to_copilot_agent(meta, body))
-                    n_roles += 1
+                    _, counted = _record(adir / f"{role}.agent.md", add_md_ownership(role_to_copilot_agent(meta, body)))
+                    if counted:
+                        n_roles += 1
         elif tool == "windsurf":
             skill_path = target / ".windsurf" / "skills" / "team-orchestrator" / "SKILL.md"
-            write_if_changed(skill_path, skill_text)
-            n_skills += 1
+            _, counted = _record(skill_path, skill_text)
+            if counted:
+                n_skills += 1
             if args.components == "all":
                 adir = target / ".windsurf" / "rules"
                 adir.mkdir(parents=True, exist_ok=True)
                 for role in roles:
                     src = (TEMPLATE_ROOT / "roles" / f"{role}.md").read_text()
                     meta, body = parse_frontmatter(substitute(src, models))
-                    write_if_changed(adir / f"{role}.md", role_to_windsurf_rule(meta, body))
-                    n_roles += 1
+                    _, counted = _record(adir / f"{role}.md", add_md_ownership(role_to_windsurf_rule(meta, body)))
+                    if counted:
+                        n_roles += 1
         elif tool == "qoder":
             skill_path = target / ".qoder" / "skills" / "team-orchestrator" / "SKILL.md"
-            write_if_changed(skill_path, skill_text)
-            n_skills += 1
+            _, counted = _record(skill_path, skill_text)
+            if counted:
+                n_skills += 1
             if args.components == "all":
                 adir = target / ".qoder" / "agents"
                 adir.mkdir(parents=True, exist_ok=True)
                 for role in roles:
                     src = (TEMPLATE_ROOT / "roles" / f"{role}.md").read_text()
                     meta, body = parse_frontmatter(substitute(src, models))
-                    write_if_changed(adir / f"{role}.md", role_to_qoder_agent(meta, body))
-                    n_roles += 1
+                    _, counted = _record(adir / f"{role}.md", add_md_ownership(role_to_qoder_agent(meta, body)))
+                    if counted:
+                        n_roles += 1
         elif tool == "trae":
             skill_path = target / ".trae" / "skills" / "team-orchestrator" / "SKILL.md"
-            write_if_changed(skill_path, skill_text)
-            n_skills += 1
+            _, counted = _record(skill_path, skill_text)
+            if counted:
+                n_skills += 1
             if args.components == "all":
                 adir = target / ".trae" / "rules"
                 adir.mkdir(parents=True, exist_ok=True)
                 for role in roles:
                     src = (TEMPLATE_ROOT / "roles" / f"{role}.md").read_text()
-                    write_if_changed(adir / f"{role}.md", substitute(src, models))
-                    n_roles += 1
+                    _, counted = _record(adir / f"{role}.md", add_md_ownership(substitute(src, models)))
+                    if counted:
+                        n_roles += 1
         else:
             skill_path = target / f".{tool}" / "skills" / "team-orchestrator" / "SKILL.md"
-            write_if_changed(skill_path, skill_text)
-            n_skills += 1
+            _, counted = _record(skill_path, skill_text)
+            if counted:
+                n_skills += 1
             if args.components == "all":
                 adir = target / f".{tool}" / "agents"
                 adir.mkdir(parents=True, exist_ok=True)
                 for role in roles:
                     src = (TEMPLATE_ROOT / "roles" / f"{role}.md").read_text()
-                    write_if_changed(adir / f"{role}.md", substitute(src, models))
-                    n_roles += 1
+                    _, counted = _record(adir / f"{role}.md", add_md_ownership(substitute(src, models)))
+                    if counted:
+                        n_roles += 1
 
     if args.components == "all":
         (target).mkdir(parents=True, exist_ok=True)
@@ -547,9 +698,11 @@ def main(argv=None):
         existing_text = agents_path.read_text() if agents_path.is_file() else None
         write_if_changed(agents_path, merge_agents_md(existing_text, template_text))
 
+    for w in kept_warnings:
+        print(w, file=sys.stderr)
     print(f"Generated {n_roles} roles + {n_skills} skills for [{','.join(tools)}] "
-          f"to {target} (preset={args.preset}, components={args.components})")
+          f"to {target} (preset={args.preset}, components={args.components}, kept={n_kept})")
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

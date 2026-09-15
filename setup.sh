@@ -234,6 +234,7 @@ cleanup_stage() {
 N_NEW=0
 N_UPDATED=0
 N_SKIPPED=0
+N_KEPT=0
 install_entry() {
   entry_name=$1
   staged_path=$2
@@ -277,26 +278,39 @@ install_entry() {
       cp -R "$staged_path" "$live_path"
     elif [ -d "$staged_path" ] && [ -d "$live_path" ]; then
       if [ "$entry_name" = ".codex" ] && [ -f "$staged_path/config.toml" ]; then
-        for child in "$staged_path"/*; do
-          if [ ! -e "$child" ] && [ ! -L "$child" ]; then
+        staged_list=$STAGE_BASE/staged_list.tmp
+        find "$staged_path" -type f -print > "$staged_list"
+        entry_dirty=0
+        while IFS= read -r staged_file; do
+          rel=${staged_file#"$staged_path"/}
+          if [ "$rel" = "config.toml" ]; then
             continue
           fi
-          cname=$(basename "$child")
-          if [ "$cname" = "config.toml" ]; then
+          live_file=$live_path/$rel
+          if [ ! -e "$live_file" ] && [ ! -L "$live_file" ]; then
+            live_dir=$(dirname -- "$live_file")
+            mkdir -p "$live_dir"
+            cp "$staged_file" "$live_file"
+            entry_dirty=1
+          elif cmp -s "$staged_file" "$live_file"; then
+            :
+          else
+            sync_out=$(python3 "$SCRIPT_DIR/scripts/generate.py" --sync-file "$staged_file" "$live_file") || fail "sync failed for $entry_name/$rel"
+            if [ "$sync_out" = "kept" ]; then
+              printf 'kept user file: %s\n' "$entry_name/$rel"
+              N_KEPT=$((N_KEPT + 1))
+            elif [ "$sync_out" = "written" ] || [ "$sync_out" = "updated" ]; then
+              entry_dirty=1
+            fi
+          fi
+        done < "$staged_list"
+        # ensure new subdirs exist (empty dirs)
+        find "$staged_path" -type d -print | while IFS= read -r staged_dir; do
+          if [ "$staged_dir" = "$staged_path" ]; then
             continue
           fi
-          cp -R "$child" "$live_path"/
-        done
-        for child in "$staged_path"/.*; do
-          if [ ! -e "$child" ] && [ ! -L "$child" ]; then
-            continue
-          fi
-          cname=$(basename "$child")
-          case "$cname" in
-            .|..) continue ;;
-            config.toml) continue ;;
-          esac
-          cp -R "$child" "$live_path"/
+          rel=${staged_dir#"$staged_path"/}
+          mkdir -p "$live_path/$rel"
         done
         set -- python3 "$SCRIPT_DIR/scripts/generate.py" \
           --merge-config-toml "$live_path/config.toml" \
@@ -313,15 +327,65 @@ install_entry() {
         if [ -n "$REVIEWER_EFFORT" ]; then set -- "$@" --reviewer-effort "$REVIEWER_EFFORT"; fi
         merge_status=$("$@") || fail ".codex/config.toml merge failed"
         printf '%s\n' ".codex/config.toml: $merge_status"
-        N_UPDATED=$((N_UPDATED + 1))
+        case "$merge_status" in
+          merged|written) entry_dirty=1 ;;
+        esac
+        if [ "$entry_dirty" = "1" ]; then
+          printf 'Updated %s.\n' "$entry_name"
+          N_UPDATED=$((N_UPDATED + 1))
+        else
+          printf 'Up to date %s (unchanged, kept user files preserved).\n' "$entry_name"
+          N_SKIPPED=$((N_SKIPPED + 1))
+        fi
         return 0
       fi
-      cp -R "$staged_path"/. "$live_path"/
+      staged_list=$STAGE_BASE/staged_list.tmp
+      find "$staged_path" -type f -print > "$staged_list"
+      entry_dirty=0
+      while IFS= read -r staged_file; do
+        rel=${staged_file#"$staged_path"/}
+        live_file=$live_path/$rel
+        if [ ! -e "$live_file" ] && [ ! -L "$live_file" ]; then
+          live_dir=$(dirname -- "$live_file")
+          mkdir -p "$live_dir"
+          cp "$staged_file" "$live_file"
+          entry_dirty=1
+        elif cmp -s "$staged_file" "$live_file"; then
+          :
+        else
+          sync_out=$(python3 "$SCRIPT_DIR/scripts/generate.py" --sync-file "$staged_file" "$live_file") || fail "sync failed for $entry_name/$rel"
+          if [ "$sync_out" = "kept" ]; then
+            printf 'kept user file: %s\n' "$entry_name/$rel"
+            N_KEPT=$((N_KEPT + 1))
+          elif [ "$sync_out" = "written" ] || [ "$sync_out" = "updated" ]; then
+            entry_dirty=1
+          fi
+        fi
+      done < "$staged_list"
+      find "$staged_path" -type d -print | while IFS= read -r staged_dir; do
+        if [ "$staged_dir" = "$staged_path" ]; then
+          continue
+        fi
+        rel=${staged_dir#"$staged_path"/}
+        mkdir -p "$live_path/$rel"
+      done
+      if [ "$entry_dirty" = "1" ]; then
+        printf 'Updated %s.\n' "$entry_name"
+        N_UPDATED=$((N_UPDATED + 1))
+      else
+        printf 'Up to date %s (unchanged, kept user files preserved).\n' "$entry_name"
+        N_SKIPPED=$((N_SKIPPED + 1))
+      fi
+      return 0
     elif [ -f "$staged_path" ] && { [ -f "$live_path" ] || [ ! -e "$live_path" ]; }; then
       if [ "$entry_name" = "AGENTS.md" ] && [ -f "$live_path" ] && [ ! -L "$live_path" ]; then
         agents_status=$(python3 "$SCRIPT_DIR/scripts/generate.py" --merge-agents-md "$live_path" --agents-template "$SCRIPT_DIR/templates/AGENTS.md") || fail "AGENTS.md merge failed"
         printf '%s\n' "AGENTS.md: $agents_status"
-        N_UPDATED=$((N_UPDATED + 1))
+        if [ "$agents_status" = "unchanged" ]; then
+          N_SKIPPED=$((N_SKIPPED + 1))
+        else
+          N_UPDATED=$((N_UPDATED + 1))
+        fi
         return 0
       fi
       cp "$staged_path" "$live_path"
@@ -377,7 +441,7 @@ for staged_top in "$STAGE_DIR"/.* "$STAGE_DIR"/*; do
   install_entry "$top_name" "$staged_top" "$TARGET_DIR/$top_name"
 done
 
-printf '\nSetup complete: %s new, %s updated, %s skipped in %s.\n' "$N_NEW" "$N_UPDATED" "$N_SKIPPED" "$TARGET_DIR"
+printf '\nSetup complete: %s new, %s updated, %s skipped, %s kept in %s.\n' "$N_NEW" "$N_UPDATED" "$N_SKIPPED" "$N_KEPT" "$TARGET_DIR"
 printf 'Options: tools=%s components=%s preset=%s\n' "$TOOLS" "$COMPONENTS" "$PRESET"
 if [ "$COMPONENTS" = "skills-only" ]; then
   printf '%s\n' 'Next: skills installed only. Verify a SKILL.md under each tool dir, then re-run with --components all to add agent roles and AGENTS.md.'

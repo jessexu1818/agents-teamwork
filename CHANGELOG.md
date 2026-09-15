@@ -19,6 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   paths table and EN/ZH tool matrices updated to 12 tools.
 - `--tools` selection candidate set expanded 7->12 (selection flag already
   existed; `--tools all` now covers all 12 targets).
+- Ownership markers on every generated role/agent/rule/skill file
+  (`<!-- agents-teamwork: managed file ... -->` for Markdown,
+  `# agents-teamwork: managed file ...` for Codex TOML): reinstalls and
+  `setup.sh`/`setup.ps1` overwrite only owned files, keep foreign files
+  byte-identical with a `kept-user-file` warning, and adopt legacy
+  unmarked installs; `generate.py --sync-file SRC DST` exposes the same
+  policy per file.
 
 ### Fixed
 
