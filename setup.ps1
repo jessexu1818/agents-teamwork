@@ -211,6 +211,7 @@ function Install-Entry([string]$Entry, [string]$Src, [string]$Dst) {
         if ($null -ne $c) { $pyExe = $c.Source }
         if ($pyExe) {
           $agentsStatus = & $pyExe (Join-Path $ScriptDir "scripts/generate.py") --merge-agents-md "$Dst" --agents-template (Join-Path $ScriptDir "templates/AGENTS.md")
+          if ($LASTEXITCODE -ne 0) { Fail "AGENTS.md merge failed with exit code $LASTEXITCODE" }
           Write-Host "AGENTS.md: $agentsStatus"
           $script:Updated++
           return
